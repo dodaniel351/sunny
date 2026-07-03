@@ -1,0 +1,47 @@
+appId: com.sunny.commandcenter
+productName: Sunny
+copyright: Copyright © 2026 David O'Daniel
+directories:
+  buildResources: build
+  output: release/${version}
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.{md,map}'
+asarUnpack:
+  # Native modules must live outside the asar so their .node binaries load.
+  - '**/node_modules/better-sqlite3/**'
+  - '**/node_modules/keytar/**'
+  - '**/node_modules/sqlite-vec*/**'
+extraResources:
+  # Ship the app icon as a real file so the system-tray icon can load it at
+  # runtime (build/ is buildResources and isn't inside the asar).
+  - from: build/icon.png
+    to: icon.png
+electronLanguages:
+  - en-US
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-setup-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  artifactName: ${productName}-${version}-${arch}.${ext}
+linux:
+  maintainer: David O'Daniel <dodaniel351@users.noreply.github.com>
+  target:
+    - deb
+  category: Utility
+  artifactName: ${productName}-${version}-${arch}.${ext}
+npmRebuild: false

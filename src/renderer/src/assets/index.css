@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-ink-950 text-fg font-sans antialiased;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  /* Thin, dark scrollbars that match the chrome. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-700 rounded-full;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-600;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Org-chart layout for the Team view (structure layer). A top-down hierarchy
+   with connector lines drawn via ::before/::after borders — the classic pure-CSS
+   tree, so it handles arbitrary depth, single children, and multiple roots. */
+.org-tree ul {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  padding-top: 22px;
+}
+.org-tree li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 22px 12px 0;
+}
+/* connectors from each node up to the sibling bus */
+.org-tree li::before,
+.org-tree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 22px;
+  border-top: 2px solid theme('colors.ink.700');
+}
+.org-tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 2px solid theme('colors.ink.700');
+}
+/* a lone child needs only the vertical drop, no horizontal bus */
+.org-tree li:only-child::before,
+.org-tree li:only-child::after {
+  display: none;
+}
+.org-tree li:only-child {
+  padding-top: 22px;
+}
+/* trim the bus so it spans only between the outermost siblings */
+.org-tree li:first-child::before,
+.org-tree li:last-child::after {
+  border: 0 none;
+}
+.org-tree li:last-child::before {
+  border-right: 2px solid theme('colors.ink.700');
+}
+/* the vertical drop from a parent down to its children's bus */
+.org-tree ul ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 22px;
+  border-left: 2px solid theme('colors.ink.700');
+}
+/* the root row has no parent above it */
+.org-tree > ul {
+  padding-top: 0;
+}
+.org-tree > ul > li::before,
+.org-tree > ul > li::after {
+  display: none;
+}

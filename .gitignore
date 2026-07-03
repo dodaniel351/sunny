@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+out/
+dist/
+dist-electron/
+release/
+*.tsbuildinfo
+
+# Native module build artifacts
+build/Release/
+prebuilds/
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+.vitest/
+
+# Local app data produced while developing (Sunny writes to OS app-data dir,
+# but keep any stray local copies out of git)
+.sunny-data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Env (dev toggles only — NEVER user secrets; secrets live in the OS keychain)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Caches
+.eslintcache
