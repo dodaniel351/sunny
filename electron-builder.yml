@@ -32,6 +32,19 @@ nsis:
   allowToChangeInstallationDirectory: true
 mac:
   category: public.app-category.productivity
+  # Hardened runtime + these entitlements are required for notarization; they're
+  # signing-time flags, so an unsigned test build (CSC_IDENTITY_AUTO_DISCOVERY=false)
+  # ignores them.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # To NOTARIZE on the signing Mac: uncomment and set your Team ID, then export
+  # APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER (App Store Connect API key)
+  # — or APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID. Left off so an
+  # initial unsigned smoke build works without credentials.
+  # notarize:
+  #   teamId: "YOURTEAMID"
   target:
     - target: dmg
       arch:
