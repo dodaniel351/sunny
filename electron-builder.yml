@@ -44,4 +44,8 @@ linux:
     - deb
   category: Utility
   artifactName: ${productName}-${version}-${arch}.${ext}
+deb:
+  # Custom postinst that ALWAYS SUID-roots chrome-sandbox — the default probe
+  # picks 0755 on Ubuntu 24.04 and the app then can't launch. See the script.
+  afterInstall: build/linux/after-install.sh
 npmRebuild: false
