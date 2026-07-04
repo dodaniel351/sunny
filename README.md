@@ -4,15 +4,19 @@ Sunny is a **local-first, standalone desktop command center for agentic AI work*
 
 ## ⬇️ Download
 
-**[Download the latest Windows installer →](https://github.com/dodaniel351/sunny/releases/latest)** (`Sunny-<version>-setup-x64.exe`, from the Releases page).
+**[Get the latest release →](https://github.com/dodaniel351/sunny/releases/latest)** — pick the build for your platform:
 
-> The installer is **unsigned**, so Windows SmartScreen will warn on first run — choose **More info → Run anyway**. When upgrading, **quit Sunny from the system tray before reinstalling** (see the [User Guide](docs/USER-GUIDE.md#1-getting-started)).
+- **macOS** — `Sunny-<version>-arm64.dmg` for **Apple Silicon** (M1/M2/M3/M4) or `Sunny-<version>-x64.dmg` for **Intel** Macs. Signed & notarized by Apple: open the dmg and drag **Sunny** to Applications. (Not sure which? Apple menu → About This Mac — "Apple M…" = arm64, "Intel" = x64.)
+- **Windows** — `Sunny-<version>-setup-x64.exe`. The installer is **unsigned**, so SmartScreen will warn on first run — choose **More info → Run anyway**.
+- **Linux (Debian/Ubuntu)** — `Sunny-<version>-amd64.deb`. Install with `sudo apt install ./Sunny-<version>-amd64.deb`; needs a desktop keyring (GNOME Keyring, default on Ubuntu) for secret storage.
+
+> When upgrading, **quit Sunny first** (from the system tray on Windows/Linux, or ⌘Q on macOS) before reinstalling — see the [User Guide](docs/USER-GUIDE.md#1-getting-started).
 
 ## 📖 Documentation
 
 **[User Guide →](docs/USER-GUIDE.md)** — the complete guide to using Sunny: connecting providers, chat, agents and permission modes, the autonomous board, approvals, schedules, memory, MCP servers, budgets, and troubleshooting.
 
-> **Status:** all nine spec phases plus the "structure layer" (goals, delegation, approvals, team, scheduler) and the autonomy tier (iterative agent loop with verification, MCP client, board-manipulation tools, cost/budget metering) are implemented. Multi-provider chat, persistent graph memory, an autonomous task worker, and a Windows installer all work. See the [User Guide](docs/USER-GUIDE.md) for the full feature set.
+> **Status:** all nine spec phases plus the "structure layer" (goals, delegation, approvals, team, scheduler) and the autonomy tier (iterative agent loop with verification, MCP client, board-manipulation tools, cost/budget metering) are implemented. Multi-provider chat, persistent graph memory, an autonomous task worker, and installers for macOS (signed & notarized), Windows, and Linux all work. See the [User Guide](docs/USER-GUIDE.md) for the full feature set.
 
 ## Tech stack
 

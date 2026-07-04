@@ -2,7 +2,7 @@
 
 Sunny is a local-first desktop command center for agentic AI work. You connect the AI providers you already pay for (or run locally), define agents with real tools and guardrails, and hand them work — interactively in chat, on a Kanban board they work autonomously, or on a schedule. Everything runs and stays on your machine: your keys live in the OS keychain, your data in a local SQLite database.
 
-> **Version**: 0.5.1 · **Platform**: Windows (installer) · This guide covers every user-facing surface.
+> **Version**: 0.5.1 · **Platforms**: macOS · Windows · Linux · This guide covers every user-facing surface.
 
 ## Contents
 
@@ -24,7 +24,13 @@ Sunny is a local-first desktop command center for agentic AI work. You connect t
 
 ### Installing
 
-Download the NSIS installer `Sunny-<version>-setup-x64.exe` and run it. The installer sets up Sunny on your machine and optionally launches it when done.
+Download the build for your platform from the [Releases page](https://github.com/dodaniel351/sunny/releases/latest):
+
+- **macOS** — `Sunny-<version>-arm64.dmg` (Apple Silicon) or `Sunny-<version>-x64.dmg` (Intel). Open the dmg and drag **Sunny** to Applications. The app is signed & notarized by Apple, so it launches with no Gatekeeper warning.
+- **Windows** — `Sunny-<version>-setup-x64.exe` (NSIS installer). It's unsigned, so SmartScreen will warn on first run — choose **More info → Run anyway**.
+- **Linux (Debian/Ubuntu)** — `Sunny-<version>-amd64.deb`. Install with `sudo apt install ./Sunny-<version>-amd64.deb`.
+
+The installer/app sets up Sunny on your machine and optionally launches it when done.
 
 > **CRITICAL:** If you're reinstalling or upgrading Sunny, quit the app from the system tray **before** running the installer. Quit Sunny from the tray menu (right-click the tray icon → Quit Sunny). Closing the window only minimizes Sunny to the tray—it keeps running in the background. If you install over a running copy, the old version continues running and fixes won't take effect.
 
