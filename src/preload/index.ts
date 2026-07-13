@@ -32,6 +32,8 @@ import {
   type ChatDeleteParams,
   type ChatSendParams,
   type ChatSendResult,
+  type ChatRetryParams,
+  type ChatRetryResult,
   type ChatCancelParams,
   type ChatStreamEvent,
   type ChatConfirmRequest,
@@ -216,6 +218,10 @@ const api = {
     /** Start a streaming completion; resolves with the persisted user message. */
     send: (params: ChatSendParams): Promise<ChatSendResult> =>
       ipcRenderer.invoke(IPC.chatSend, params),
+    /** Retry a failed turn: re-stream the reply for the existing last user
+     *  message (no duplicate user turn, images preserved). */
+    retry: (params: ChatRetryParams): Promise<ChatRetryResult> =>
+      ipcRenderer.invoke(IPC.chatRetry, params),
     /** Cancel an in-flight stream. */
     cancel: (params: ChatCancelParams): Promise<OkResult> =>
       ipcRenderer.invoke(IPC.chatCancel, params),

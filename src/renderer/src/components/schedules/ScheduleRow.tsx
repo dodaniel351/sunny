@@ -98,6 +98,17 @@ export function ScheduleRow({
         <p className="text-sm text-fg-subtle">No goal set.</p>
       )}
 
+      {/* Circuit breaker: the scheduler auto-disables a schedule after 3
+          consecutive firings that ended Blocked. Without this the row looks
+          identical to a manually-disabled one, so the user re-enables blindly
+          and it re-trips. */}
+      {!enabled && schedule.consecutive_failures >= 3 ? (
+        <p className="rounded-lg border border-status-blocked/30 bg-status-blocked/10 px-3 py-2 text-xs text-status-blocked">
+          Auto-disabled after {schedule.consecutive_failures} consecutive failed runs. Fix the
+          cause (open a recent run from Activity), then re-enable it above.
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-fg-subtle">
         <span className="inline-flex items-center gap-1.5">
           <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

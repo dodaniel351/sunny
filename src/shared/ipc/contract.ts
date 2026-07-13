@@ -63,6 +63,7 @@ export const IPC = {
   chatsDelete: 'chats:delete',
   // Streaming chat (spec §4 / Phase 2)
   chatSend: 'chat:send',
+  chatRetry: 'chat:retry',
   chatCancel: 'chat:cancel',
   // Main → renderer stream events (one-way; see preload onChatStream).
   chatStream: 'chat:stream',
@@ -451,6 +452,23 @@ export const ChatSendResult = z.object({
   title: z.string().optional()
 })
 export type ChatSendResult = z.infer<typeof ChatSendResult>
+
+// chat:retry re-streams the assistant reply for the chat's EXISTING trailing
+// user turn (after a failed stream) — it does NOT persist a new user message,
+// so retrying never duplicates the prompt or drops its images (they're already
+// on the persisted turn). Same knobs as send, minus content/images.
+export const ChatRetryParams = z.object({
+  chatId: z.string(),
+  model: z.string(),
+  provider: z.string().optional(),
+  folderPath: z.string().optional(),
+  webSearch: z.boolean().optional(),
+  permissionMode: PermissionMode.optional()
+})
+export type ChatRetryParams = z.infer<typeof ChatRetryParams>
+
+export const ChatRetryResult = z.object({ streamId: z.string() })
+export type ChatRetryResult = z.infer<typeof ChatRetryResult>
 
 export const ChatCancelParams = z.object({ streamId: z.string() })
 export type ChatCancelParams = z.infer<typeof ChatCancelParams>

@@ -412,8 +412,17 @@ export function Board(): JSX.Element {
         <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200">
           Auto-work is <span className="font-semibold">off</span> —{' '}
           {tasks.filter((t) => t.status === 'Backlog' || t.status === 'Planned').length} task(s)
-          are waiting. Turn it on (top right), use a card&apos;s <em>Work now</em>, or click{' '}
+          are waiting. Turn it on (top right), use a card&apos;s <em>Work this task</em>, or click{' '}
           <em>Run now</em> for a one-off scan.
+        </div>
+      ) : null}
+
+      {/* Blocked tasks never auto-scan — they need a human. Nudge to Resume. */}
+      {tasks.some((t) => t.status === 'Blocked') ? (
+        <div className="mt-4 rounded-xl border border-status-blocked/30 bg-status-blocked/10 px-4 py-2.5 text-sm text-status-blocked">
+          {tasks.filter((t) => t.status === 'Blocked').length} task(s){' '}
+          <span className="font-semibold">blocked</span> — they won&apos;t run on their own. Open a
+          card to see why, then <em>Resume</em> it (or decide any pending approvals).
         </div>
       ) : null}
 
@@ -443,6 +452,7 @@ export function Board(): JSX.Element {
               onAssign={handleAssign}
               onWork={(task) => void handleWork(task)}
               onDelegate={handleDelegate}
+              onOpenApprovals={() => navigate('/approvals')}
               onOpenDetail={setDetailTask}
               onView={(task) => {
                 if (task.chat_id) {

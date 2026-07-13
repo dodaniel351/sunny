@@ -27,6 +27,8 @@ interface BoardColumnProps {
   onOpenDetail: (task: Task) => void
   /** Open the result/status modal for a task's agent work chat. */
   onView: (task: Task) => void
+  /** Navigate to the Approvals inbox (from an awaiting-approval card). */
+  onOpenApprovals: () => void
   /** project id → name, for the per-card project badge. */
   projectName?: Map<string, string>
   /** Show a project badge on each card (true in the All-Projects view). */
@@ -53,6 +55,7 @@ export function BoardColumn({
   onDelegate,
   onOpenDetail,
   onView,
+  onOpenApprovals,
   projectName,
   showProjectBadge,
   goalName
@@ -98,6 +101,7 @@ export function BoardColumn({
               onAssign={(assignee) => onAssign(task.id, assignee)}
               onWork={onWork}
               onDelegate={onDelegate}
+              onOpenApprovals={onOpenApprovals}
               onOpenDetail={onOpenDetail}
               onView={onView}
               projectBadge={

@@ -373,7 +373,7 @@ export function TaskDetailDialog({
             className="inline-flex items-center gap-1.5 rounded-xl border border-ink-700 px-3 py-2 text-sm font-medium text-fg-muted transition-colors hover:border-ink-600 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
           >
             <Play className="h-4 w-4" aria-hidden="true" />
-            Work
+            {task.chat_id ? 'Resume' : 'Work'}
           </button>
           {task.chat_id && onOpenChat ? (
             <button

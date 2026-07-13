@@ -435,12 +435,38 @@ export class TaskWorker {
       }
     }
 
-    // Roll the children's results up into a synthesized answer on the parent.
+    // If any child ended Blocked, the goal is NOT actually done — synthesizing a
+    // "final" answer over incomplete work and marking the parent Done would hide
+    // the failure and orphan the blocked child. Park the parent Blocked instead,
+    // naming the stuck children so the user can Resume them (each child card has
+    // its own Resume button).
+    const blockedChildren = childIds
+      .map((id) => repos.tasks.get(id))
+      .filter((c): c is Task => c != null && c.status === 'Blocked')
+    if (blockedChildren.length > 0) {
+      const names = blockedChildren.map((c) => `“${c.title}”`).join(', ')
+      const reason = `${blockedChildren.length} subtask${blockedChildren.length > 1 ? 's' : ''} blocked (${names}) — resume the blocked subtask cards, then re-run this goal.`
+      await this.#moveBlocked(task, reason)
+      repos.activity.record({
+        kind: 'run.failed',
+        actor: manager.name,
+        agentId: manager.id,
+        taskId: task.id,
+        goalId: task.goal_id,
+        projectId: task.project_id,
+        payload: { summary: `Delegation blocked on “${task.title}”: ${reason}` }
+      })
+      this.#deps.notify?.({ title: 'Sunny — delegation blocked', body: `“${task.title}”: ${reason}` })
+      return
+    }
+
+    // All children finished — roll their results up into a synthesized answer.
     try {
       await this.#synthesize(task, manager, childIds, exec)
     } catch (err) {
       console.error('[sunny] delegate: synthesis failed', task.id, err)
-      await this.#moveBlocked(task)
+      const reason = `Couldn't synthesize the subtask results: ${err instanceof Error ? err.message : 'synthesis failed'}. Resume this goal to retry.`
+      await this.#moveBlocked(task, reason)
     }
   }
 

@@ -74,6 +74,26 @@ export function useMemoryGraph({
     void load()
   }, [enabled, load])
 
+  // Status (counts + auto-memory toggle + embedding note) is shown in BOTH the
+  // List and Graph views, so fetch it ALWAYS — not only when the (heavy) graph
+  // is enabled. Without this the status bar showed "Loading…" forever in List
+  // view and the auto-memory toggle stayed disabled (you couldn't turn capture
+  // off from the default view).
+  useEffect(() => {
+    let cancelled = false
+    window.sunny.memories
+      .status()
+      .then((s) => {
+        if (!cancelled) setStatus(s)
+      })
+      .catch(() => {
+        /* status is best-effort; the bar just stays on its last value */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [scope, projectId])
+
   const setAuto = useCallback(async (next: boolean): Promise<void> => {
     setStatus((prev) => (prev ? { ...prev, autoMemory: next } : prev))
     try {

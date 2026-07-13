@@ -129,7 +129,7 @@ export function Memory(): JSX.Element {
       </div>
 
       <div className="mt-3">
-        <RelevanceControl />
+        <RelevanceControl embeddingsAvailable={status?.embeddingsAvailable ?? false} />
       </div>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

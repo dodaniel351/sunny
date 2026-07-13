@@ -29,6 +29,8 @@ import {
   FileSaveAsParams,
   ChatSendParams,
   ChatSendResult,
+  ChatRetryParams,
+  ChatRetryResult,
   ChatCancelParams,
   ChatConfirmRespondParams,
   type ChatStreamEvent,
@@ -1159,6 +1161,37 @@ export function registerIpcHandlers({
     return ChatSendResult.parse({ streamId, userMessage, title: derivedTitle })
   })
 
+  // Retry a failed turn: re-stream the assistant reply for the chat's EXISTING
+  // trailing user message. Unlike chat:send it persists NO new user turn — so a
+  // retry never duplicates the prompt or loses its images (both live on the
+  // already-persisted turn that the failed send created).
+  ipcMain.handle(IPC.chatRetry, (event, raw) => {
+    const { chatId, model, provider, folderPath, webSearch, permissionMode } =
+      ChatRetryParams.parse(raw)
+    const chat = repos.chats.get(chatId)
+    if (!chat) throw new Error(`Chat not found: ${chatId}`)
+    const history = repos.messages.listByChat(chatId)
+    const last = history[history.length - 1]
+    if (!last || last.role !== 'user') {
+      throw new Error('Nothing to retry — the last turn is not a pending message.')
+    }
+    const kind = provider ?? chat.provider ?? 'openai'
+    const streamId = randomUUID()
+    void runStream(event.sender, {
+      kind,
+      chatId,
+      model,
+      streamId,
+      turns: toChatTurns(history),
+      folderPath,
+      agentId: chat.agent_id ?? undefined,
+      webSearch,
+      permissionMode,
+      projectId: chat.project_id ?? undefined
+    })
+    return ChatRetryResult.parse({ streamId })
+  })
+
   ipcMain.handle(IPC.chatCancel, (_event, raw) => {
     const { streamId } = ChatCancelParams.parse(raw)
     activeStreams.get(streamId)?.abort()
@@ -1266,6 +1299,13 @@ export function registerIpcHandlers({
   ipcMain.handle(IPC.agentsDelete, (_event, raw) => {
     const { id } = AgentDeleteParams.parse(raw)
     repos.agents.delete(id)
+    // If this WAS the default agent, clear the dangling setting — otherwise the
+    // worker keeps resolving a deleted id and silently stops working unassigned
+    // tasks. (manager_id / goal owner / schedule agent are FK ON DELETE SET NULL;
+    // board tasks reference by name and block with a clear "reassign" reason.)
+    if (repos.settings.get('default_agent') === id) {
+      repos.settings.set('default_agent', '')
+    }
     return OkResult.parse({ ok: true })
   })
   // Governance lifecycle (structure layer): pause/resume/terminate. A paused

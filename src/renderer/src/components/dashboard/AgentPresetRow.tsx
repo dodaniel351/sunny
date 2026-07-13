@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { agentPresets } from '@renderer/data/agentPresets'
 import { cn } from '@renderer/lib/cn'
 import { useUiStore } from '@renderer/store/uiStore'
+import { isUsableProvider } from '@renderer/lib/providers'
 import type { Agent } from '@shared/db/types'
 
 /**
@@ -17,6 +18,10 @@ export function AgentPresetRow(): JSX.Element {
   const selectedModel = useUiStore((s) => s.selectedModel)
   const setSelectedModel = useUiStore((s) => s.setSelectedModel)
   const activeProjectId = useUiStore((s) => s.activeProjectId)
+  // A preset chat is only useful once a provider is connected — otherwise it
+  // drops the user into a chat whose composer is disabled ("Connect a
+  // provider"), a dead end. Mirror the composer's own gate.
+  const hasConnected = useUiStore((s) => s.providers.some(isUsableProvider))
 
   const [agents, setAgents] = useState<Agent[]>([])
   const [launching, setLaunching] = useState<string | null>(null)
@@ -39,6 +44,12 @@ export function AgentPresetRow(): JSX.Element {
 
   async function startPresetChat(presetName: string): Promise<void> {
     if (launching) return
+    // No usable provider → send them to Settings to connect one instead of into
+    // an unusable chat.
+    if (!hasConnected) {
+      navigate('/settings')
+      return
+    }
     setLaunching(presetName)
     try {
       const agent = agents.find((a) => a.name === presetName)
@@ -71,6 +82,7 @@ export function AgentPresetRow(): JSX.Element {
           type="button"
           onClick={() => void startPresetChat(name)}
           disabled={launching !== null}
+          title={hasConnected ? undefined : 'Connect a provider in Settings first'}
           aria-label={`Start a chat with the ${name} agent — ${description}`}
           className={cn(
             'group flex flex-col items-start gap-3 rounded-2xl border border-ink-700/70 bg-ink-800 p-4 text-left',

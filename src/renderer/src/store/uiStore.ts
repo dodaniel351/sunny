@@ -179,7 +179,10 @@ interface UiState {
  * view stay in sync. Per-chat streaming buffers live in `chatStore`.
  */
 export const useUiStore = create<UiState>((set) => ({
-  permissionMode: 'Autopilot',
+  // Ask, not Autopilot — a new user's first tool-using turn should confirm each
+  // side effect rather than run it unattended. They can switch to Autopilot when
+  // they trust a flow.
+  permissionMode: 'Ask',
   coreStatus: 'connecting',
   coreVersion: null,
   providers: [],

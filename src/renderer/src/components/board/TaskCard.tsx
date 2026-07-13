@@ -41,6 +41,8 @@ interface TaskCardProps {
   onOpenDetail?: (task: Task) => void
   /** Open the result/status modal for the agent's work chat (cards with one). */
   onView?: (task: Task) => void
+  /** Navigate to the Approvals inbox (from an awaiting-approval card's badge). */
+  onOpenApprovals?: () => void
   /** Project name to show as a badge (the board's All-Projects view). */
   projectBadge?: string
   /** Goal title to show as a chip (the task's "why"), if linked. */
@@ -66,6 +68,7 @@ export function TaskCard({
   onDelegate,
   onOpenDetail,
   onView,
+  onOpenApprovals,
   projectBadge,
   goalBadge,
   overlay = false
@@ -98,6 +101,10 @@ export function TaskCard({
   const resolvedAgent =
     assignedAgent ?? (defaultAgentId ? (agents.find((a) => a.id === defaultAgentId) ?? null) : null)
   const canWork = resolvedAgent !== null
+  // Only offer on-card Resume when the resolved agent can actually run — a paused
+  // agent's task would just bounce with a "resume it in Team" toast, so don't
+  // tease the button (the block reason already explains the pause).
+  const canResume = resolvedAgent?.lifecycle_state === 'active'
 
   useEffect(() => {
     if (editing) titleRef.current?.focus()
@@ -279,13 +286,22 @@ export function TaskCard({
             </div>
           ) : null}
           {/* Why-is-this-stuck, at a glance: a pending approval gate gets its own
-              badge (deep-linked from /approvals); any other Blocked card shows
-              the block reason inline instead of a mystery column placement. */}
+              badge that jumps to Approvals (where deciding resumes the task); any
+              other Blocked card shows the block reason inline. */}
           {!overlay && Boolean(task.awaiting_approval) ? (
-            <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenApprovals?.()
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              title="Review and decide in Approvals — approving resumes this task"
+              className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300 transition-colors hover:bg-amber-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
+            >
               <Hourglass className="h-3 w-3" aria-hidden="true" />
-              Awaiting your approval — see Approvals
-            </span>
+              Awaiting your approval — review
+            </button>
           ) : null}
           {!overlay && task.status === 'Blocked' && task.blocked_reason && !task.awaiting_approval ? (
             <p
@@ -294,6 +310,12 @@ export function TaskCard({
             >
               <OctagonAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
               <span className="line-clamp-2">{task.blocked_reason}</span>
+            </p>
+          ) : null}
+          {/* Blocked but no agent resolves → the fix is to assign one below. */}
+          {!overlay && task.status === 'Blocked' && !canWork && !task.awaiting_approval ? (
+            <p className="mt-1 text-[11px] leading-snug text-fg-subtle">
+              Assign an agent below to resume this task.
             </p>
           ) : null}
           {task.description ? (
@@ -325,19 +347,46 @@ export function TaskCard({
               Assign an agent to this task, or set a default agent on the board, to work it.
             </p>
           ) : null}
-          {!overlay && task.chat_id && onView ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onView(task)
-              }}
+          {/* Primary actions surfaced directly on the card (not the hover menu):
+              Resume picks a stuck task back up where the agent left off (the run
+              resumes its working chat via context_ref); View result opens the
+              report. A card awaiting APPROVAL shows its own badge instead —
+              that's decided in Approvals, not resumed here. */}
+          {!overlay &&
+          ((task.status === 'Blocked' && canResume && !task.awaiting_approval) ||
+            (task.chat_id && onView)) ? (
+            <div
+              className="mt-2 flex flex-wrap items-center gap-1.5"
               onDoubleClick={(e) => e.stopPropagation()}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:border-ink-600 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
             >
-              <FileText className="h-3 w-3" aria-hidden="true" />
-              View result
-            </button>
+              {task.status === 'Blocked' && canResume && !task.awaiting_approval ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleWork()
+                  }}
+                  title="Continue this task where the agent left off"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[11px] font-semibold text-amber-300 transition-colors hover:bg-amber-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
+                >
+                  <Play className="h-3 w-3" aria-hidden="true" />
+                  Resume
+                </button>
+              ) : null}
+              {task.chat_id && onView ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onView(task)
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:border-ink-600 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
+                >
+                  <FileText className="h-3 w-3" aria-hidden="true" />
+                  View result
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
@@ -365,7 +414,7 @@ export function TaskCard({
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-fg-muted transition-colors hover:bg-ink-800 hover:text-fg focus-visible:bg-ink-800 focus-visible:text-fg focus-visible:outline-none"
               >
                 <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                Work this task
+                {task.chat_id ? 'Resume work' : 'Work this task'}
               </button>
               <button
                 type="button"

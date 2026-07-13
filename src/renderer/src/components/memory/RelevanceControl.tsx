@@ -13,7 +13,13 @@ const COMMIT_MS = 400
  * ~0.55–0.6; OpenAI-style embeddings suit the 0.35 default. Persists the
  * `memory_relevance_min` setting the recall gate reads per query.
  */
-export function RelevanceControl(): JSX.Element {
+export function RelevanceControl({
+  embeddingsAvailable = true
+}: {
+  /** When false, semantic recall is off entirely, so this floor does nothing —
+   *  the control is disabled with a note rather than silently inert. */
+  embeddingsAvailable?: boolean
+}): JSX.Element {
   const [value, setValue] = useState(DEFAULT_MIN)
   const [loaded, setLoaded] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -61,20 +67,21 @@ export function RelevanceControl(): JSX.Element {
         id="memory-relevance"
         type="range"
         min={0}
-        max={0.9}
+        max={1}
         step={0.05}
         value={value}
-        disabled={!loaded}
+        disabled={!loaded || !embeddingsAvailable}
         onChange={(e) => handleChange(Number(e.target.value))}
-        className="h-1.5 w-40 cursor-pointer accent-amber-400"
+        className="h-1.5 w-40 cursor-pointer accent-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
       />
       <span className="font-mono text-xs text-fg" aria-live="polite">
         {value.toFixed(2)}
         {saved ? ' ✓' : ''}
       </span>
       <span className="text-[11px] text-fg-subtle">
-        Higher = only closely-matching memories are recalled into chats (local embedders like
-        nomic often want ~0.55).
+        {embeddingsAvailable
+          ? 'Higher = only closely-matching memories are recalled into chats (local embedders like nomic often want ~0.55).'
+          : 'Semantic recall is off — connect an embedding model above to use this.'}
       </span>
     </div>
   )

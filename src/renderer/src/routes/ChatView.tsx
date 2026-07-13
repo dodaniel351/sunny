@@ -249,11 +249,29 @@ export function ChatView(): JSX.Element {
   }
 
   function handleRetry(): void {
-    if (!active) return
-    const { prompt, webSearch } = active
-    clearStream(active.streamId)
+    if (!active || !chatId || !selectedProvider || !selectedModel) return
+    const { prompt, webSearch, streamId: failedId } = active
+    clearStream(failedId)
     setActive(null)
-    void sendMessage(prompt, webSearch)
+    setSendError(null)
+    // Re-stream the reply for the EXISTING last user turn — no new user message
+    // (so no duplicate, and its images are preserved on the persisted turn).
+    void (async () => {
+      try {
+        const { streamId } = await window.sunny.chat.retry({
+          chatId,
+          model: selectedModel,
+          provider: selectedProvider,
+          folderPath: folder?.path,
+          webSearch,
+          permissionMode: PERMISSION_TO_DB[permissionMode]
+        })
+        startStream(streamId, chatId)
+        setActive({ streamId, prompt, webSearch })
+      } catch (err: unknown) {
+        setSendError(err instanceof Error ? err.message : 'Failed to retry.')
+      }
+    })()
   }
 
   function beginEditTitle(): void {
