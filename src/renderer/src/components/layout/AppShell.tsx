@@ -8,6 +8,7 @@ import { ToolConfirmDialog } from '@renderer/components/chat/ToolConfirmDialog'
 import { Spinner } from '@renderer/components/ui/Spinner'
 import { IconRail } from './IconRail'
 import { ProjectsPanel } from './ProjectsPanel'
+import { RightRail } from './RightRail'
 
 /**
  * App shell: a thin section rail, then — for the Chats section (home + any
@@ -18,6 +19,9 @@ import { ProjectsPanel } from './ProjectsPanel'
 export function AppShell(): JSX.Element {
   const { pathname } = useLocation()
   const showProjects = pathname === '/' || pathname.startsWith('/chats')
+  // The dashboard shows the live-activity rail on the right (a running feed of
+  // agent/task transitions, click-through to the work chat).
+  const showRail = pathname === '/'
 
   // Prove the IPC pipe once on mount; status surfaces in the icon rail footer.
   useCorePing()
@@ -44,6 +48,7 @@ export function AppShell(): JSX.Element {
           <Outlet />
         </Suspense>
       </main>
+      {showRail ? <RightRail /> : null}
       <ToolConfirmDialog />
     </div>
   )

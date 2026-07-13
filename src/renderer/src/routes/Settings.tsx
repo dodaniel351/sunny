@@ -63,13 +63,15 @@ export function Settings(): JSX.Element {
       />
 
       <div className="mt-8 flex flex-col gap-5">
-        <SettingsSection
-          icon={KeyRound}
-          title="Providers & Keys / OAuth"
-          description="Connect Anthropic, OpenAI, Google, OpenRouter, Groq, plus Codex and Grok via OAuth."
-        >
-          <ProvidersSection />
-        </SettingsSection>
+        <div id="settings-providers">
+          <SettingsSection
+            icon={KeyRound}
+            title="Providers & Keys / OAuth"
+            description="Connect Anthropic, OpenAI, Google, OpenRouter, Groq, plus Codex and Grok via OAuth."
+          >
+            <ProvidersSection />
+          </SettingsSection>
+        </div>
 
         <SettingsSection
           icon={Sparkles}

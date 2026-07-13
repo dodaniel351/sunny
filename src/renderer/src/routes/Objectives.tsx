@@ -1,6 +1,7 @@
-import { Plus, Pencil, Target, Trash2, CornerDownRight } from 'lucide-react'
+import { ListChecks, Plus, Pencil, Target, Trash2, CornerDownRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { GoalForm, type GoalFormValues } from '@renderer/components/objectives/GoalForm'
+import { GoalTasksDialog } from '@renderer/components/objectives/GoalTasksDialog'
 import { EmptyState } from '@renderer/components/ui/EmptyState'
 import { PageHeader } from '@renderer/components/ui/PageHeader'
 import { Spinner } from '@renderer/components/ui/Spinner'
@@ -60,6 +61,8 @@ export function Objectives(): JSX.Element {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  // The goal whose linked-tasks dialog is open (null = closed).
+  const [tasksFor, setTasksFor] = useState<GoalNode | null>(null)
 
   const agentName = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents])
 
@@ -180,6 +183,11 @@ export function Objectives(): JSX.Element {
             ) : null}
 
             <div className="ml-auto flex items-center gap-1">
+              {confirmDeleteId === goal.id ? (
+                <span className="mr-1 text-[10px] font-medium text-status-blocked">
+                  {children.length > 0 ? 'Sub-goals move up a level — ' : ''}click again to delete
+                </span>
+              ) : null}
               {isObjective ? (
                 <button
                   type="button"
@@ -190,6 +198,15 @@ export function Objectives(): JSX.Element {
                   Goal
                 </button>
               ) : null}
+              <button
+                type="button"
+                onClick={() => setTasksFor(goal)}
+                aria-label={`Manage tasks for ${goal.title}`}
+                title="Link tasks to this goal"
+                className="rounded-lg p-1 text-fg-subtle transition-colors hover:bg-ink-800 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
+              >
+                <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
               <button
                 type="button"
                 onClick={() => openEdit(goal)}
@@ -281,6 +298,14 @@ export function Objectives(): JSX.Element {
           error={saveError}
           onSubmit={(values) => void handleSubmit(values)}
           onClose={closeEditor}
+        />
+      ) : null}
+
+      {tasksFor ? (
+        <GoalTasksDialog
+          goal={tasksFor}
+          onChanged={() => void refresh()}
+          onClose={() => setTasksFor(null)}
         />
       ) : null}
     </div>

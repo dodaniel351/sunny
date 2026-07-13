@@ -2,6 +2,7 @@ import { ArrowUp, FolderOpen, Globe, Paperclip, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ModelSelector } from '@renderer/components/dashboard/ModelSelector'
+import { PermissionSelect } from '@renderer/components/chat/PermissionSelect'
 import { AttachmentChips } from '@renderer/components/ui/AttachmentChips'
 import { Chip } from '@renderer/components/ui/Chip'
 import { Panel } from '@renderer/components/ui/Panel'
@@ -130,6 +131,8 @@ export function ChatComposer({
       <div className="mt-3 flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <ModelSelector />
+
+          <PermissionSelect />
 
           {folder ? (
             <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/60 bg-amber-400/10 px-3.5 py-2 text-sm font-medium text-amber-200">
