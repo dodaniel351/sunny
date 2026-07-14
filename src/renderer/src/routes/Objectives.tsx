@@ -6,6 +6,7 @@ import { EmptyState } from '@renderer/components/ui/EmptyState'
 import { PageHeader } from '@renderer/components/ui/PageHeader'
 import { Spinner } from '@renderer/components/ui/Spinner'
 import { useGoals } from '@renderer/hooks/useGoals'
+import { useTasksChanged } from '@renderer/hooks/useTasksChanged'
 import { useUiStore } from '@renderer/store/uiStore'
 import { cn } from '@renderer/lib/cn'
 import { childrenIndex, rollupGoals, type GoalProgress } from '@renderer/lib/goals'
@@ -63,6 +64,11 @@ export function Objectives(): JSX.Element {
   const [actionError, setActionError] = useState<string | null>(null)
   // The goal whose linked-tasks dialog is open (null = closed).
   const [tasksFor, setTasksFor] = useState<GoalNode | null>(null)
+
+  // The progress rollup is derived from task status, so a worker moving a card
+  // to/from Done shifts the bars. Refresh live on the task-changed broadcast
+  // (refresh() doesn't toggle the loading state, so no spinner flash).
+  useTasksChanged(refresh)
 
   const agentName = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents])
 

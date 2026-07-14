@@ -26,6 +26,7 @@ import { PageHeader } from '@renderer/components/ui/PageHeader'
 import { Spinner } from '@renderer/components/ui/Spinner'
 import { Plus } from 'lucide-react'
 import { useBoardStore } from '@renderer/store/boardStore'
+import { useTasksChanged } from '@renderer/hooks/useTasksChanged'
 import { useUiStore } from '@renderer/store/uiStore'
 import type { Agent, Task, TaskStatus } from '@shared/db/types'
 import type { GoalNode } from '@shared/ipc/contract'
@@ -95,27 +96,17 @@ export function Board(): JSX.Element {
   }, [load, filter])
 
   // Live board: the autonomous worker (and schedules, and other windows) move
-  // cards without this view knowing. Subscribe to main's task-changed broadcast
-  // and re-fetch the current scope — debounced so a burst of transitions collapses
-  // into one reload, and deferred while a drag is in flight (see the ref effect
-  // below) so it never disrupts a card the user is dragging.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null
-    const unsubscribe = window.sunny.tasks.onChanged(() => {
-      if (timer) clearTimeout(timer)
-      timer = setTimeout(() => {
-        if (activeIdRef.current) {
-          missedChangeRef.current = true // reconcile once the drag settles
-          return
-        }
-        void load(filter === 'all' ? null : filter, { silent: true })
-      }, 400)
-    })
-    return () => {
-      if (timer) clearTimeout(timer)
-      unsubscribe()
+  // cards without this view knowing. Refetch the current scope on each broadcast
+  // (silent, so no spinner flash) — but defer while a drag is in flight so it
+  // never disrupts a card the user is dragging; the ref effect below catches up
+  // once the drag settles.
+  useTasksChanged(() => {
+    if (activeIdRef.current) {
+      missedChangeRef.current = true
+      return
     }
-  }, [load, filter])
+    void load(filter === 'all' ? null : filter, { silent: true })
+  })
 
   // Mirror the drag state into a ref for the subscription, and — when a drag ends
   // after a change was deferred — catch up with a reload so nothing is missed.

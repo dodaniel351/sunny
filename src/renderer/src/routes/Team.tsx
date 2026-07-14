@@ -5,13 +5,16 @@ import { PageHeader } from '@renderer/components/ui/PageHeader'
 import { Spinner } from '@renderer/components/ui/Spinner'
 import { OrgChart } from '@renderer/components/team/OrgChart'
 import { TeamCard } from '@renderer/components/team/TeamCard'
+import { useTasksChanged } from '@renderer/hooks/useTasksChanged'
 import { buildOrgForest, type OrgTreeNode } from '@renderer/lib/orgTree'
 import { cn } from '@renderer/lib/cn'
 import type { AgentLifecycle } from '@shared/db/types'
 import type { AgentOrgNode } from '@shared/ipc/contract'
 
-/** Refresh interval so heartbeats (who's working now) stay live. */
-const POLL_MS = 8_000
+// Backstop poll for heartbeats. The `tasks:changed` broadcast now drives instant
+// updates when an agent claims/finishes a task, so this only needs to catch any
+// drift the event stream misses — a longer interval keeps it cheap.
+const POLL_MS = 20_000
 
 type TeamView = 'list' | 'chart'
 
@@ -51,6 +54,10 @@ export function Team(): JSX.Element {
       clearInterval(timer)
     }
   }, [reload])
+
+  // Instant heartbeat updates: a task claim/finish flips which task an agent is
+  // working, so reload the tree on the same broadcast the board uses.
+  useTasksChanged(() => void reload())
 
   async function handleRefresh(): Promise<void> {
     setRefreshing(true)
