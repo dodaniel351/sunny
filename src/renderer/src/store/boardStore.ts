@@ -39,8 +39,10 @@ interface BoardState {
    * Load tasks for a project scope and group them. `projectId` maps to the IPC
    * call as `projectId ?? undefined` (null = all tasks). The scope is retained so
    * `create` attaches new cards to the same project. Safe to call repeatedly.
+   * `silent` skips the loading flag so background/live refreshes don't flash the
+   * header spinner (the grouped list still updates in place).
    */
-  load: (projectId?: string | null) => Promise<void>
+  load: (projectId?: string | null, opts?: { silent?: boolean }) => Promise<void>
   /** Create a card in a column and prepend it. Defaults to the loaded project
    *  scope; an explicit `projectId` (or null for unattached) overrides it. */
   create: (params: {
@@ -76,10 +78,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   error: null,
   projectId: null,
 
-  load: async (projectId) => {
+  load: async (projectId, opts) => {
     // Default to the currently-held scope so error-path refetches preserve it.
     const scope = projectId === undefined ? get().projectId : projectId
-    set({ loading: true, error: null, projectId: scope })
+    // A silent (live/background) refresh updates the list without toggling the
+    // header spinner; a foreground load shows it while the query runs.
+    set(opts?.silent ? { error: null, projectId: scope } : { loading: true, error: null, projectId: scope })
     try {
       const tasks = await window.sunny.tasks.list({ projectId: scope ?? undefined })
       set({ ...setFromTasks(tasks), loading: false })

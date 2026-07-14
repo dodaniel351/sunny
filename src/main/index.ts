@@ -26,6 +26,7 @@ import { createNotifier } from '@main/notifications'
 import { registerIpcHandlers } from '@main/ipc'
 import { McpManager } from '@main/mcp/manager'
 import { configureWebSearch, parseSearchProvider } from '@main/tools/search-config'
+import { IPC } from '@shared/ipc/contract'
 
 // Phase 1 main process: bring up the local-first data layer (SQLite + migrations
 // and the OS-keychain secret store), register typed IPC, then create the secure
@@ -33,6 +34,15 @@ import { configureWebSearch, parseSearchProvider } from '@main/tools/search-conf
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+
+/** Send a one-way event to every live renderer (main → renderer broadcast). */
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+      win.webContents.send(channel, payload)
+    }
+  }
+}
 let taskWorker: TaskWorker | null = null
 let scheduler: Scheduler | null = null
 let mcpManager: McpManager | null = null
@@ -245,7 +255,19 @@ if (!gotLock) {
       const db = initDatabase(join(userDataDir, 'sunny.sqlite'))
       const migrationResult = runMigrations(db, migrations)
       const secretStore = createSecretStore({ userDataDir })
-      const repos = createRepositories(db)
+      // Wire a live-refresh broadcast: every task create/claim/move records an
+      // activity row, and the same hook nudges all renderers so the board (and
+      // any task view) reflects the autonomous worker's transitions immediately,
+      // instead of staying stale until a manual reload.
+      const repos = createRepositories(db, (event) => {
+        if (event.taskId) {
+          broadcast(IPC.tasksChanged, {
+            kind: event.kind,
+            taskId: event.taskId,
+            projectId: event.projectId ?? null
+          })
+        }
+      })
       // Seed/refresh the built-in agent presets. The version gate re-applies the
       // latest preset definitions (role/system-prompt) when they change in code,
       // without clobbering user-created agents or pinned provider/model.

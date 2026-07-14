@@ -49,6 +49,7 @@ import {
   type TaskEventsResult,
   type TaskActivityParams,
   type TaskActivityResult,
+  type TasksChangedEvent,
   type TaskDelegateParams,
   type TaskReworkParams,
   type AgentsListResult,
@@ -268,6 +269,16 @@ const api = {
     /** Recent board transitions across all tasks — feeds the Live Activity pane. */
     activity: (params: TaskActivityParams = {}): Promise<TaskActivityResult> =>
       ipcRenderer.invoke(IPC.tasksActivity, params),
+    /**
+     * Subscribe to task-changed broadcasts (a card was created/claimed/moved by
+     * the worker, a schedule, or any window). Returns an unsubscribe function.
+     * Lets the board refresh live instead of going stale until a manual reload.
+     */
+    onChanged: (callback: (event: TasksChangedEvent) => void): (() => void) => {
+      const listener = (_e: unknown, payload: TasksChangedEvent): void => callback(payload)
+      ipcRenderer.on(IPC.tasksChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.tasksChanged, listener)
+    },
     /** Delegate a task: a manager agent decomposes it into subtasks + dispatches
      *  them to a worker agent. Fire-and-forget; progress shows on the board. */
     delegate: (params: TaskDelegateParams): Promise<OkResult> =>

@@ -82,12 +82,50 @@ export function Board(): JSX.Element {
   // Timers for the post-delegate board poll + toast dismissal, cleaned up on unmount.
   const pollTimers = useRef<ReturnType<typeof setTimeout>[]>([])
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Latest drag state for the live-refresh subscription (read without resubscribing
+  // on every drag tick), plus a flag so a change that arrived mid-drag is applied
+  // once the drag settles rather than yanking a card out from under the pointer.
+  const activeIdRef = useRef<string | null>(null)
+  const missedChangeRef = useRef(false)
 
   // Load tasks for the board's scope, and re-fetch whenever the filter changes.
   // 'all' maps to null (= every project); a project id scopes to that project.
   useEffect(() => {
     void load(filter === 'all' ? null : filter)
   }, [load, filter])
+
+  // Live board: the autonomous worker (and schedules, and other windows) move
+  // cards without this view knowing. Subscribe to main's task-changed broadcast
+  // and re-fetch the current scope — debounced so a burst of transitions collapses
+  // into one reload, and deferred while a drag is in flight (see the ref effect
+  // below) so it never disrupts a card the user is dragging.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const unsubscribe = window.sunny.tasks.onChanged(() => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        if (activeIdRef.current) {
+          missedChangeRef.current = true // reconcile once the drag settles
+          return
+        }
+        void load(filter === 'all' ? null : filter, { silent: true })
+      }, 400)
+    })
+    return () => {
+      if (timer) clearTimeout(timer)
+      unsubscribe()
+    }
+  }, [load, filter])
+
+  // Mirror the drag state into a ref for the subscription, and — when a drag ends
+  // after a change was deferred — catch up with a reload so nothing is missed.
+  useEffect(() => {
+    activeIdRef.current = activeId
+    if (activeId === null && missedChangeRef.current) {
+      missedChangeRef.current = false
+      void load(filter === 'all' ? null : filter, { silent: true })
+    }
+  }, [activeId, load, filter])
 
   // Load the agent library once so cards can assign and "Work this task" resolve.
   useEffect(() => {
@@ -172,12 +210,14 @@ export function Board(): JSX.Element {
     [load]
   )
 
-  /** Schedule a burst of board reloads so a background run's progress (claim →
-   *  finish/block) appears without a manual refresh. */
+  /** Belt-and-suspenders backstop to the live `tasks.onChanged` subscription:
+   *  a short burst of silent reloads so a background run's progress still appears
+   *  even if a change broadcast is ever missed. Silent so it doesn't flash the
+   *  header spinner over the live updates. */
   const pollBoard = useCallback((): void => {
-    void load()
+    void load(undefined, { silent: true })
     for (let i = 1; i <= 12; i++) {
-      pollTimers.current.push(setTimeout(() => void load(), i * 2500))
+      pollTimers.current.push(setTimeout(() => void load(undefined, { silent: true }), i * 2500))
     }
   }, [load])
 

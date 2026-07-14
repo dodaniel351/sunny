@@ -15,7 +15,7 @@ import { MemoryGraphRepo } from './memory-graph'
 import { ProjectsRepo } from './projects'
 import { SchedulesRepo } from './schedules'
 import { RunsRepo } from './runs'
-import { ActivityRepo, type ActivitySink } from './activity'
+import { ActivityRepo, type ActivitySink, type ActivityInput } from './activity'
 import { GoalsRepo } from './goals'
 import { TaskDependenciesRepo } from './task-dependencies'
 import { ApprovalsRepo } from './approvals'
@@ -72,13 +72,27 @@ export interface Repositories {
 // the same transaction, so the audit entry commits atomically with the change.
 // Failures in the sink are swallowed — a missed audit line must never roll back
 // the real mutation.
-export function createRepositories(db: SunnyDatabase): Repositories {
+//
+// `onChange` (optional) is a post-write notifier the main process uses to
+// broadcast a live board refresh: it fires for the SAME events, after the audit
+// row is recorded. Delivery is async (webContents.send just enqueues), and the
+// mutation's transaction is synchronous, so any renderer refetch it triggers
+// reads already-committed rows. Its errors are swallowed too.
+export function createRepositories(
+  db: SunnyDatabase,
+  onChange?: (event: ActivityInput) => void
+): Repositories {
   const activity = new ActivityRepo(db)
   const onActivity: ActivitySink = (event) => {
     try {
       activity.record(event)
     } catch (err) {
       console.error('[sunny] activity sink failed', event.kind, err)
+    }
+    try {
+      onChange?.(event)
+    } catch (err) {
+      console.error('[sunny] change notifier failed', event.kind, err)
     }
   }
   return {

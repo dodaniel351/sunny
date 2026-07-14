@@ -1,6 +1,6 @@
 {
   "name": "sunny",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Sunny — a local-first, standalone desktop command center for agentic AI work.",
   "main": "./out/main/index.js",
   "homepage": "https://github.com/dodaniel351/sunny",

@@ -82,6 +82,10 @@ export const IPC = {
   tasksWorkNow: 'tasks:workNow',
   taskEvents: 'tasks:events',
   tasksActivity: 'tasks:activity',
+  // Main → renderer broadcast: a task changed (created/claimed/moved) anywhere —
+  // the autonomous worker, a schedule, or another window. Lets the board refresh
+  // live instead of going stale until a manual reload (see preload tasks.onChanged).
+  tasksChanged: 'tasks:changed',
   // Multi-agent delegation (spec §7): a manager decomposes a task into subtasks.
   tasksDelegate: 'tasks:delegate',
   // Rework-with-feedback: re-queue a reviewed task with the user's critique
@@ -509,6 +513,16 @@ export const TasksListParams = z.object({ projectId: z.string().nullable().optio
 export type TasksListParams = z.infer<typeof TasksListParams>
 export const TasksListResult = z.array(Task)
 export type TasksListResult = z.infer<typeof TasksListResult>
+
+// Main → renderer broadcast payload for `tasks:changed`. `kind` is the activity
+// kind that triggered it (task.created/claimed/moved); `projectId` lets a scoped
+// board decide whether the change is in view (null = unattached / all scopes).
+export const TasksChangedEvent = z.object({
+  kind: z.string(),
+  taskId: z.string().nullable(),
+  projectId: z.string().nullable()
+})
+export type TasksChangedEvent = z.infer<typeof TasksChangedEvent>
 
 export const TaskCreateParams = z.object({
   title: z.string().min(1),
