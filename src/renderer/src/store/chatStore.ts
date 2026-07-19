@@ -7,6 +7,9 @@ export interface StreamBuffer {
   chatId: string
   /** Text accumulated from `delta` events so far. */
   text: string
+  /** Reasoning accumulated from `thinking` events — rendered in the bubble's
+   *  collapsible "Thinking" section, never merged into the answer text. */
+  thinking: string
   /**
    * Transient progress text from `status` events (e.g. "🔎 Searching the web…").
    * Shown live near the streaming bubble but NEVER appended to the saved answer;
@@ -50,6 +53,8 @@ interface ChatState {
   pendingFolder: ChatFolder | null
   startStream: (streamId: string, chatId: string) => void
   appendDelta: (streamId: string, text: string) => void
+  /** Append reasoning text from a `thinking` event to the buffer. */
+  appendThinking: (streamId: string, text: string) => void
   /** Record the latest transient status text (web-search progress, etc.). */
   setStreamStatus: (streamId: string, status: string) => void
   failStream: (streamId: string, error: string) => void
@@ -84,7 +89,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       streams: {
         ...state.streams,
-        [streamId]: { streamId, chatId, text: '', status: null, done: false, error: null }
+        [streamId]: {
+          streamId,
+          chatId,
+          text: '',
+          thinking: '',
+          status: null,
+          done: false,
+          error: null
+        }
       }
     })),
   appendDelta: (streamId, text) =>
@@ -96,6 +109,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         streams: {
           ...state.streams,
           [streamId]: { ...existing, text: existing.text + text, status: null }
+        }
+      }
+    }),
+  appendThinking: (streamId, text) =>
+    set((state) => {
+      const existing = state.streams[streamId]
+      if (!existing) return state
+      return {
+        streams: {
+          ...state.streams,
+          [streamId]: { ...existing, thinking: existing.thinking + text }
         }
       }
     }),

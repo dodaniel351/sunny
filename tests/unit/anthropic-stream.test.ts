@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { parseSseEvents, SseParser } from '@main/providers/sse'
-import { AnthropicProvider, mapStreamEvent } from '@main/providers/anthropic'
+import { AnthropicProvider, mapStreamEvent, thinkingConfigFor } from '@main/providers/anthropic'
 import type { StreamChunk, ToolSpec } from '@main/providers/types'
 
 // These tests exercise ONLY the Anthropic adapter's pure delta-extraction logic
@@ -492,5 +492,82 @@ describe('AnthropicProvider.streamWithTools', () => {
 
     expect(error).toBe('Overloaded')
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('adaptive thinking', () => {
+  it('maps thinking_delta events to thinking chunks', () => {
+    const chunk = mapStreamEvent(
+      JSON.stringify({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: 'Let me consider…' }
+      })
+    )
+    expect(chunk).toEqual({ type: 'thinking', text: 'Let me consider…' })
+  })
+
+  it('skips empty thinking deltas (display: omitted streams empty text)', () => {
+    const chunk = mapStreamEvent(
+      JSON.stringify({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: '' }
+      })
+    )
+    expect(chunk).toBeUndefined()
+  })
+
+  it('selects the right thinking config per model', () => {
+    // 4.7+ / Fable / Sonnet 5 need the explicit display opt-in.
+    expect(thinkingConfigFor('claude-opus-4-8')).toEqual({
+      type: 'adaptive',
+      display: 'summarized'
+    })
+    expect(thinkingConfigFor('claude-opus-4-7')).toEqual({
+      type: 'adaptive',
+      display: 'summarized'
+    })
+    expect(thinkingConfigFor('claude-fable-5')).toEqual({
+      type: 'adaptive',
+      display: 'summarized'
+    })
+    // The 4.6 family predates `display` and already defaults to summarized.
+    expect(thinkingConfigFor('claude-sonnet-4-6')).toEqual({ type: 'adaptive' })
+    expect(thinkingConfigFor('claude-opus-4-6')).toEqual({ type: 'adaptive' })
+    // Haiku and unknown models stay unchanged (no thinking param).
+    expect(thinkingConfigFor('claude-haiku-4-5')).toBeUndefined()
+    expect(thinkingConfigFor('claude-3-5-sonnet-20241022')).toBeUndefined()
+  })
+
+  it('streams thinking then text through a full turn without terminating early', () => {
+    const parser = new SseParser()
+    const wire =
+      frame('message_start', { type: 'message_start', message: { id: 'msg_1' } }) +
+      frame('content_block_delta', {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: 'step 1' }
+      }) +
+      frame('content_block_delta', {
+        type: 'content_block_delta',
+        index: 1,
+        delta: { type: 'text_delta', text: 'Answer.' }
+      }) +
+      frame('message_stop', { type: 'message_stop' })
+
+    let thinking = ''
+    let text = ''
+    let done = false
+    for (const sse of parser.push(wire)) {
+      const chunk = mapStreamEvent(sse.data)
+      if (!chunk) continue
+      if (chunk.type === 'thinking') thinking += chunk.text
+      else if (chunk.type === 'delta') text += chunk.text
+      else if (chunk.type === 'done') done = true
+    }
+    expect(thinking).toBe('step 1')
+    expect(text).toBe('Answer.')
+    expect(done).toBe(true)
   })
 })

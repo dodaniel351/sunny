@@ -17,6 +17,8 @@ export interface MessageCreateInput {
   runId?: string
   /** JSON-encoded ImageAttachment[] the user attached to this turn. */
   attachments?: string
+  /** The model's reasoning for this turn (thinking summaries / <think> text). */
+  thinking?: string
 }
 
 export class MessagesRepo {
@@ -26,8 +28,8 @@ export class MessagesRepo {
 
   constructor(db: SunnyDatabase) {
     this.insertStmt = db.prepare(
-      `INSERT INTO messages (id, chat_id, role, content, provider, model, tool_calls, run_id, attachments, created_at)
-       VALUES (@id, @chat_id, @role, @content, @provider, @model, @tool_calls, @run_id, @attachments, @created_at)`
+      `INSERT INTO messages (id, chat_id, role, content, provider, model, tool_calls, run_id, attachments, thinking, created_at)
+       VALUES (@id, @chat_id, @role, @content, @provider, @model, @tool_calls, @run_id, @attachments, @thinking, @created_at)`
     )
     this.listByChatStmt = db.prepare(
       `SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC`
@@ -46,6 +48,7 @@ export class MessagesRepo {
       tool_calls: input.toolCalls ?? null,
       run_id: input.runId ?? null,
       attachments: input.attachments ?? null,
+      thinking: input.thinking ?? null,
       created_at: new Date().toISOString()
     }
     this.insertStmt.run(row)

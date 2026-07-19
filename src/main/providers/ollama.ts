@@ -33,6 +33,7 @@ import type {
 } from './types'
 import type { Embedder } from '../memory/embeddings'
 import { SseParser } from './sse'
+import { ThinkTagSplitter } from './think-tags'
 import { runToolLoop } from './tool-loop'
 
 /** The daemon's default loopback address; overridable in Settings. */
@@ -62,7 +63,9 @@ interface EmbedResponse {
  * /v1 endpoint mirrors the OpenAI chat-completions wire shape exactly). */
 interface ChatCompletionChunk {
   choices?: Array<{
-    delta?: { content?: string | null }
+    // `reasoning` is how Ollama's /v1 endpoint surfaces a thinking model's
+    // chain of thought (mirrors OpenRouter's field of the same name).
+    delta?: { content?: string | null; reasoning?: string | null }
     finish_reason?: string | null
   }>
 }
@@ -188,6 +191,13 @@ export function handleData(data: string): StreamChunk | undefined {
     return { type: 'delta', text: content }
   }
 
+  // A thinking model's reasoning streams in its own delta field, before the
+  // answer content — surface it as a thinking chunk for the collapsible UI.
+  const reasoning = choice?.delta?.reasoning
+  if (typeof reasoning === 'string' && reasoning !== '') {
+    return { type: 'thinking', text: reasoning }
+  }
+
   // The final chunk arrives with an empty delta + a finish_reason; surface that
   // as the terminal `done`. (Empty interim deltas just yield nothing.)
   const finishReason = choice?.finish_reason
@@ -273,6 +283,10 @@ export class OllamaProvider implements Provider {
     const reader = body.getReader()
     const decoder = new TextDecoder()
     const parser = new SseParser()
+    // Local thinking models (DeepSeek-R1, Qwen, …) inline their reasoning as a
+    // leading <think>…</think> block in the answer — split it into thinking
+    // chunks so it renders in the collapsible section, not the transcript.
+    const splitter = new ThinkTagSplitter()
 
     try {
       for (;;) {
@@ -283,9 +297,15 @@ export class OllamaProvider implements Provider {
         const text = decoder.decode(value, { stream: true })
         for (const sse of parser.push(text)) {
           const chunk = handleData(sse.data)
-          if (chunk) {
+          if (!chunk) continue
+          if (chunk.type === 'delta') {
+            yield* splitter.push(chunk.text)
+          } else if (chunk.type === 'thinking') {
             yield chunk
-            if (chunk.type !== 'delta') return
+          } else {
+            yield* splitter.flush()
+            yield chunk
+            return
           }
         }
       }
@@ -295,11 +315,18 @@ export class OllamaProvider implements Provider {
       // default `done` if the stream ended without a terminal event.
       for (const sse of parser.flush()) {
         const chunk = handleData(sse.data)
-        if (chunk) {
+        if (!chunk) continue
+        if (chunk.type === 'delta') {
+          yield* splitter.push(chunk.text)
+        } else if (chunk.type === 'thinking') {
           yield chunk
-          if (chunk.type !== 'delta') return
+        } else {
+          yield* splitter.flush()
+          yield chunk
+          return
         }
       }
+      yield* splitter.flush()
       yield { type: 'done' }
     } catch (err) {
       // Includes AbortError when `signal` fires mid-stream — surface uniformly.

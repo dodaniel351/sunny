@@ -52,6 +52,11 @@ export interface ToolCall {
 export type StreamChunk =
   | { type: 'delta'; text: string }
   | { type: 'status'; text: string }
+  /** The model's reasoning (Anthropic thinking summaries, Gemini thoughts,
+   *  reasoning fields / <think> blocks on local + aggregator models). Shown in a
+   *  collapsible section of the chat bubble and persisted separately from the
+   *  answer — NEVER concatenated into the answer text. */
+  | { type: 'thinking'; text: string }
   /** Token usage for the turn (emitted once, before `done`, by adapters that
    *  report it). Tool-loop adapters accumulate across rounds. Consumers that
    *  don't care (the renderer transcript) simply ignore it. */

@@ -31,6 +31,7 @@ import type {
   StreamWithToolsParams
 } from './types'
 import { SseParser } from './sse'
+import { ThinkTagSplitter } from './think-tags'
 import { runToolLoop } from './tool-loop'
 
 /** Per-vendor configuration that specializes the one adapter into a provider. */
@@ -71,7 +72,10 @@ export interface OpenAICompatibleConfig {
 /** The slice of each streamed chat-completions chunk we care about. */
 interface ChatCompletionChunk {
   choices?: Array<{
-    delta?: { content?: string | null }
+    // Reasoning models stream their chain of thought in a dedicated delta
+    // field: `reasoning` (OpenRouter, Grok) or `reasoning_content` (DeepSeek,
+    // Groq) — before the answer content.
+    delta?: { content?: string | null; reasoning?: string | null; reasoning_content?: string | null }
     finish_reason?: string | null
   }>
 }
@@ -274,6 +278,9 @@ export class OpenAICompatibleProvider implements Provider {
     const reader = body.getReader()
     const decoder = new TextDecoder()
     const parser = new SseParser()
+    // Some aggregator-served models inline reasoning as a leading <think>…</think>
+    // block instead of (or as well as) the reasoning delta field — split it out.
+    const splitter = new ThinkTagSplitter()
 
     try {
       for (;;) {
@@ -284,9 +291,15 @@ export class OpenAICompatibleProvider implements Provider {
         const text = decoder.decode(value, { stream: true })
         for (const sse of parser.push(text)) {
           const chunk = handleData(sse.data)
-          if (chunk) {
+          if (!chunk) continue
+          if (chunk.type === 'delta') {
+            yield* splitter.push(chunk.text)
+          } else if (chunk.type === 'thinking') {
             yield chunk
-            if (chunk.type !== 'delta') return
+          } else {
+            yield* splitter.flush()
+            yield chunk
+            return
           }
         }
       }
@@ -296,11 +309,18 @@ export class OpenAICompatibleProvider implements Provider {
       // emit a default `done` if the stream ended without a terminal event.
       for (const sse of parser.flush()) {
         const chunk = handleData(sse.data)
-        if (chunk) {
+        if (!chunk) continue
+        if (chunk.type === 'delta') {
+          yield* splitter.push(chunk.text)
+        } else if (chunk.type === 'thinking') {
           yield chunk
-          if (chunk.type !== 'delta') return
+        } else {
+          yield* splitter.flush()
+          yield chunk
+          return
         }
       }
+      yield* splitter.flush()
       yield { type: 'done' }
     } catch (err) {
       // Includes AbortError when `signal` fires mid-stream — surface uniformly.
@@ -353,6 +373,13 @@ export function handleData(data: string): StreamChunk | undefined {
   const content = choice?.delta?.content
   if (typeof content === 'string' && content !== '') {
     return { type: 'delta', text: content }
+  }
+
+  // A reasoning model's chain of thought streams in its own delta field —
+  // surface it as a thinking chunk for the collapsible UI.
+  const reasoning = choice?.delta?.reasoning ?? choice?.delta?.reasoning_content
+  if (typeof reasoning === 'string' && reasoning !== '') {
+    return { type: 'thinking', text: reasoning }
   }
 
   // Many providers send the final chunk with an empty delta + a finish_reason;

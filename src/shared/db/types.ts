@@ -164,6 +164,9 @@ export const Message = z.object({
   // JSON-encoded image attachments (ImageAttachment[]) the user attached to this
   // turn, or null. Persisted so vision models still see them across turns.
   attachments: z.string().nullable(),
+  // The model's reasoning for this turn (thinking summaries / <think> content),
+  // or null. Displayed in a collapsible section; never part of the answer text.
+  thinking: z.string().nullable(),
   created_at: isoTimestamp
 })
 export type Message = z.infer<typeof Message>

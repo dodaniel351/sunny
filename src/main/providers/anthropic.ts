@@ -41,6 +41,30 @@ const ANTHROPIC_VERSION = '2023-06-01'
 // default and matches the spec's request shape.
 const MAX_TOKENS = 4096
 
+// With adaptive thinking on, reasoning tokens count against max_tokens — give
+// the turn extra headroom so long thinking never truncates the answer.
+const THINKING_MAX_TOKENS = 16000
+
+/**
+ * The `thinking` request config for a model, or undefined for models where the
+ * request must stay unchanged (Haiku and older only accept the deprecated
+ * budget_tokens form — not worth the cost/latency change for chat).
+ *
+ * Adaptive thinking is the recommended config on every 4.6+ model. On Fable 5 /
+ * Sonnet 5 / Opus 4.7/4.8 the `display` field defaults to "omitted" (thinking
+ * blocks stream with EMPTY text), so we must opt into "summarized" to have
+ * anything to show. The 4.6 family predates `display` and already defaults to
+ * summarized, so it gets the bare adaptive form.
+ */
+export function thinkingConfigFor(
+  model: string
+): { type: 'adaptive'; display?: 'summarized' } | undefined {
+  if (/^claude-(fable-5|sonnet-5|opus-4-[78])/.test(model))
+    return { type: 'adaptive', display: 'summarized' }
+  if (/^claude-(opus-4-6|sonnet-4-6)/.test(model)) return { type: 'adaptive' }
+  return undefined
+}
+
 // The shared tool loop runs ≈5 model round-trips before forcing a text answer.
 const MAX_TOOL_ROUNDS = 5
 
@@ -83,6 +107,8 @@ interface AnthropicContentBlock {
   type?: string
   // text block
   text?: string
+  // thinking block (adaptive thinking): the summarized reasoning text.
+  thinking?: string
   // tool_use block
   id?: string
   name?: string
@@ -125,7 +151,7 @@ function toAnthropicTool(spec: ToolSpec): AnthropicTool {
 /** The slice of each streamed event payload we care about. */
 interface AnthropicStreamEvent {
   type?: string
-  delta?: { type?: string; text?: string; stop_reason?: string | null }
+  delta?: { type?: string; text?: string; thinking?: string; stop_reason?: string | null }
   /** message_start wraps the message (carries usage.input_tokens). */
   message?: { usage?: { input_tokens?: number; output_tokens?: number } }
   /** message_delta carries CUMULATIVE usage.output_tokens at the top level. */
@@ -232,9 +258,15 @@ export function mapStreamEvent(data: string): StreamChunk | undefined {
 
   switch (event.type) {
     case 'content_block_delta':
-      return event.delta?.type === 'text_delta' && typeof event.delta.text === 'string'
-        ? { type: 'delta', text: event.delta.text }
-        : undefined
+      if (event.delta?.type === 'text_delta' && typeof event.delta.text === 'string')
+        return { type: 'delta', text: event.delta.text }
+      // Adaptive-thinking summaries stream as thinking_delta events; surface
+      // them as thinking chunks so the UI can render the reasoning live.
+      if (event.delta?.type === 'thinking_delta' && typeof event.delta.thinking === 'string')
+        return event.delta.thinking === ''
+          ? undefined
+          : { type: 'thinking', text: event.delta.thinking }
+      return undefined
     case 'message_delta': {
       // Carries the final stop_reason; the stream ends on message_stop, so we
       // surface the reason here but do not terminate yet. A server-side web
@@ -313,6 +345,7 @@ export class AnthropicProvider implements Provider {
   async *streamChat(params: StreamChatParams): AsyncIterable<StreamChunk> {
     const { apiKey, model, messages, signal, webSearch } = params
     const { system, messages: anthropicMessages } = mapMessages(messages)
+    const thinking = thinkingConfigFor(model)
 
     let response: Response
     try {
@@ -328,6 +361,10 @@ export class AnthropicProvider implements Provider {
           max_tokens: MAX_TOKENS,
           messages: anthropicMessages,
           stream: true,
+          // Adaptive thinking (supported models): reasoning summaries stream as
+          // thinking_delta events → thinking chunks. Thinking tokens count
+          // against max_tokens, so the cap gets extra headroom.
+          ...(thinking ? { thinking, max_tokens: THINKING_MAX_TOKENS } : {}),
           ...(system ? { system } : {}),
           // Native server-side web search (GA — no beta header needed). The
           // stream may then carry web_search_tool_result and other non-text
@@ -383,7 +420,7 @@ export class AnthropicProvider implements Provider {
           takeUsage(sse.data)
           const chunk = mapStreamEvent(sse.data)
           if (chunk) {
-            if (chunk.type !== 'delta') {
+            if (chunk.type !== 'delta' && chunk.type !== 'thinking') {
               if (promptTokens > 0 || completionTokens > 0)
                 yield { type: 'usage', promptTokens, completionTokens }
               yield chunk
@@ -401,7 +438,7 @@ export class AnthropicProvider implements Provider {
         takeUsage(sse.data)
         const chunk = mapStreamEvent(sse.data)
         if (chunk) {
-          if (chunk.type !== 'delta') {
+          if (chunk.type !== 'delta' && chunk.type !== 'thinking') {
             if (promptTokens > 0 || completionTokens > 0)
               yield { type: 'usage', promptTokens, completionTokens }
             yield chunk
@@ -446,6 +483,7 @@ export class AnthropicProvider implements Provider {
   async *streamWithTools(params: StreamWithToolsParams): AsyncIterable<StreamChunk> {
     const { apiKey, model, messages, signal, webSearch, tools, runTool } = params
     const { system, messages: initial } = mapMessages(messages)
+    const thinking = thinkingConfigFor(model)
 
     // Start from the plain user/assistant turns (string content is a valid
     // Messages content shape), then grow the transcript with block-content
@@ -492,6 +530,10 @@ export class AnthropicProvider implements Provider {
             max_tokens: MAX_TOKENS,
             messages: loopMessages,
             stream: false,
+            // Adaptive thinking (supported models). The verbatim assistant-content
+            // echo below is what makes this safe: thinking blocks MUST be passed
+            // back unchanged when a turn continues through tool_use rounds.
+            ...(thinking ? { thinking, max_tokens: THINKING_MAX_TOKENS } : {}),
             ...(system ? { system } : {}),
             ...(roundTools.length > 0 ? { tools: roundTools } : {})
           }),
@@ -519,6 +561,16 @@ export class AnthropicProvider implements Provider {
         completionTokens += json.usage.output_tokens
 
       const content = Array.isArray(json.content) ? json.content : []
+
+      // Surface this round's reasoning (adaptive thinking summaries) so the UI
+      // shows it live. The blocks stay in `content` untouched — the echo below
+      // sends them back verbatim, as the API requires mid-turn.
+      for (const b of content) {
+        if (b.type === 'thinking' && typeof b.thinking === 'string' && b.thinking !== '') {
+          yield { type: 'thinking', text: b.thinking }
+        }
+      }
+
       const toolUses = content.filter(
         (b): b is AnthropicContentBlock & { id: string; name: string } =>
           b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string'

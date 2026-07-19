@@ -482,6 +482,9 @@ export const ChatStreamEvent = z.discriminatedUnion('type', [
   // Transient progress (e.g. "🔎 Searching the web…") shown live but NOT part of
   // the saved answer — only delta text is accumulated.
   z.object({ streamId: z.string(), type: z.literal('status'), text: z.string() }),
+  // The model's reasoning (thinking summaries / <think> blocks) — rendered in a
+  // collapsible section of the live bubble and persisted on the saved message.
+  z.object({ streamId: z.string(), type: z.literal('thinking'), text: z.string() }),
   z.object({ streamId: z.string(), type: z.literal('done'), message: Message }),
   z.object({ streamId: z.string(), type: z.literal('error'), message: z.string() })
 ])

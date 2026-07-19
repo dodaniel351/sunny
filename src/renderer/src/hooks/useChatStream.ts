@@ -18,6 +18,7 @@ interface UseChatStreamOptions {
  */
 export function useChatStream({ onDone }: UseChatStreamOptions): void {
   const appendDelta = useChatStore((s) => s.appendDelta)
+  const appendThinking = useChatStore((s) => s.appendThinking)
   const setStreamStatus = useChatStore((s) => s.setStreamStatus)
   const failStream = useChatStore((s) => s.failStream)
 
@@ -26,6 +27,11 @@ export function useChatStream({ onDone }: UseChatStreamOptions): void {
       switch (event.type) {
         case 'delta':
           appendDelta(event.streamId, event.text)
+          break
+        case 'thinking':
+          // The model's reasoning — accumulates into the bubble's collapsible
+          // "Thinking" section, separate from the answer text.
+          appendThinking(event.streamId, event.text)
           break
         case 'status':
           // Transient progress (e.g. web-search). Shown live, never persisted.
@@ -40,5 +46,5 @@ export function useChatStream({ onDone }: UseChatStreamOptions): void {
       }
     })
     return unsubscribe
-  }, [appendDelta, setStreamStatus, failStream, onDone])
+  }, [appendDelta, appendThinking, setStreamStatus, failStream, onDone])
 }

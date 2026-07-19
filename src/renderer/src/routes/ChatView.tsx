@@ -162,7 +162,7 @@ export function ChatView(): JSX.Element {
   // --- Auto-scroll as content arrives -------------------------------------
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [messages, buffer?.text, active])
+  }, [messages, buffer?.text, buffer?.thinking, active])
 
   // --- Send (also used for retry + dashboard handoff) ---------------------
   const sendMessage = useCallback(
@@ -437,6 +437,7 @@ export function ChatView(): JSX.Element {
                   role={m.role}
                   content={m.content}
                   attachments={m.attachments}
+                  thinking={m.thinking}
                   modelLabel={m.role === 'assistant' ? modelLabelFor(m.provider, m.model) : null}
                   providerLabel={m.role === 'assistant' ? providerLabelFor(m.provider) : null}
                   agentName={m.role === 'assistant' ? agentName : null}
@@ -450,6 +451,7 @@ export function ChatView(): JSX.Element {
                     content={buffer?.text ?? ''}
                     streaming={!buffer?.error}
                     error={buffer?.error}
+                    thinking={buffer?.thinking || null}
                     modelLabel={modelLabelFor(selectedProvider, selectedModel)}
                     providerLabel={providerLabelFor(selectedProvider)}
                     agentName={agentName}

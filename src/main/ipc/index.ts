@@ -259,7 +259,8 @@ async function accumulateStream(
   let out = ''
   for await (const chunk of provider.streamChat(params)) {
     if (chunk.type === 'delta') out += chunk.text
-    else if (chunk.type === 'status' || chunk.type === 'usage') continue
+    else if (chunk.type === 'status' || chunk.type === 'thinking' || chunk.type === 'usage')
+      continue
     else break
   }
   return out
@@ -794,6 +795,10 @@ export function registerIpcHandlers({
     const controller = new AbortController()
     activeStreams.set(streamId, controller)
     let acc = ''
+    // Reasoning accumulated from `thinking` chunks — persisted on the saved
+    // message (separately from the answer) so the collapsible section survives
+    // a reload.
+    let thinkingAcc = ''
     // Assigned once the run row exists (mid-try); hoisted so the catch can
     // close the run on failure/cancel. No-op until then (pre-run errors like
     // a missing key never opened a run).
@@ -1025,6 +1030,11 @@ export function registerIpcHandlers({
         if (chunk.type === 'delta') {
           acc += chunk.text
           send({ streamId, type: 'delta', text: chunk.text })
+        } else if (chunk.type === 'thinking') {
+          // The model's reasoning — streamed live to the collapsible section
+          // and accumulated for persistence (separately from the answer).
+          thinkingAcc += chunk.text
+          send({ streamId, type: 'thinking', text: chunk.text })
         } else if (chunk.type === 'status') {
           // Transient tool-activity line ("🔎 Searching…") — show live, don't save.
           send({ streamId, type: 'status', text: chunk.text })
@@ -1066,6 +1076,7 @@ export function registerIpcHandlers({
         content: acc,
         provider: kind,
         model,
+        ...(thinkingAcc !== '' ? { thinking: thinkingAcc } : {}),
         attachments:
           artifacts.length > 0
             ? JSON.stringify(
@@ -1104,7 +1115,8 @@ export function registerIpcHandlers({
           role: 'assistant',
           content: acc,
           provider: kind,
-          model
+          model,
+          ...(thinkingAcc !== '' ? { thinking: thinkingAcc } : {})
         })
         repos.chats.touch(chatId)
         finishChatRun('cancelled')

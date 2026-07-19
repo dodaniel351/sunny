@@ -181,7 +181,8 @@ export async function completeText(provider: Provider, params: TurnParams): Prom
     for await (const chunk of streamTurn(provider, params)) {
       armIdle()
       if (chunk.type === 'delta') out += chunk.text
-      else if (chunk.type === 'status') continue
+      // Reasoning is UI-only — the worker's transcript keeps just the answer.
+      else if (chunk.type === 'status' || chunk.type === 'thinking') continue
       else if (chunk.type === 'usage')
         params.onUsage?.({
           promptTokens: chunk.promptTokens,

@@ -220,3 +220,31 @@ describe('OpenRouter live model catalog (fetchModels)', () => {
     await expect(createOpenRouterProvider().fetchModels!('k')).rejects.toThrow()
   })
 })
+
+describe('reasoning deltas', () => {
+  it('maps the OpenRouter/Grok `reasoning` delta field to a thinking chunk', () => {
+    const chunk = handleData(
+      JSON.stringify({ choices: [{ delta: { reasoning: 'hmm, first I should…' } }] })
+    )
+    expect(chunk).toEqual({ type: 'thinking', text: 'hmm, first I should…' })
+  })
+
+  it('maps the DeepSeek/Groq `reasoning_content` delta field to a thinking chunk', () => {
+    const chunk = handleData(
+      JSON.stringify({ choices: [{ delta: { reasoning_content: 'thinking hard' } }] })
+    )
+    expect(chunk).toEqual({ type: 'thinking', text: 'thinking hard' })
+  })
+
+  it('prefers answer content when a chunk carries both', () => {
+    const chunk = handleData(
+      JSON.stringify({ choices: [{ delta: { content: 'answer', reasoning: 'thought' } }] })
+    )
+    expect(chunk).toEqual({ type: 'delta', text: 'answer' })
+  })
+
+  it('still surfaces finish_reason on an empty delta', () => {
+    const chunk = handleData(JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }))
+    expect(chunk).toEqual({ type: 'done', finishReason: 'stop' })
+  })
+})

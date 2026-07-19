@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Copy } from 'lucide-react'
+import { AlertTriangle, Brain, Check, ChevronDown, Copy } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { Spinner } from '@renderer/components/ui/Spinner'
 import { FileChips } from '@renderer/components/chat/FileChips'
@@ -17,12 +17,53 @@ interface MessageBubbleProps {
   /** The message row's raw `attachments` JSON (images + generated files). Parsed
    *  inside so this prop stays a referentially-stable string and memo holds. */
   attachments?: string | null
+  /** The model's reasoning for this turn — rendered in a collapsible section
+   *  above the answer (AI-Studio-style). Null/empty renders nothing. */
+  thinking?: string | null
   /** Friendly label of the model that produced this turn (assistant turns). */
   modelLabel?: string | null
   /** Friendly label of the provider that produced this turn (assistant turns). */
   providerLabel?: string | null
   /** Name of the agent this chat runs as, if any (assistant turns). */
   agentName?: string | null
+}
+
+/**
+ * Collapsible reasoning section. While the model is still thinking (no answer
+ * text yet) it auto-expands so the reasoning streams live; the moment the
+ * answer starts it auto-collapses to a one-line header. A manual toggle always
+ * wins over the automatic behavior once used.
+ */
+function ThinkingDisclosure({ text, active }: { text: string; active: boolean }): JSX.Element {
+  const [userOpen, setUserOpen] = useState<boolean | null>(null)
+  const open = userOpen ?? active
+  return (
+    <div className="mb-2">
+      <button
+        type="button"
+        onClick={() => setUserOpen(!open)}
+        aria-expanded={open}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-xs font-medium text-fg-subtle',
+          'transition-colors hover:bg-ink-800 hover:text-fg-muted',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60'
+        )}
+      >
+        <Brain className="h-3.5 w-3.5 text-amber-300/80" aria-hidden="true" />
+        {active ? 'Thinking…' : 'Thoughts'}
+        {active ? <Spinner className="h-3 w-3" label="Model is thinking" /> : null}
+        <ChevronDown
+          className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')}
+          aria-hidden="true"
+        />
+      </button>
+      {open ? (
+        <div className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-ink-700 pl-3 text-xs leading-relaxed text-fg-muted">
+          {text}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 /**
@@ -41,6 +82,7 @@ function MessageBubbleImpl({
   streaming = false,
   error = null,
   attachments = null,
+  thinking = null,
   modelLabel = null,
   providerLabel = null,
   agentName = null
@@ -133,6 +175,10 @@ function MessageBubbleImpl({
           </div>
         ) : null}
 
+        {!isUser && thinking ? (
+          <ThinkingDisclosure text={thinking} active={streaming && !content && !error} />
+        ) : null}
+
         {content ? (
           isUser ? (
             // User turns stay literal (preserve exactly what was typed/pasted).
@@ -142,7 +188,9 @@ function MessageBubbleImpl({
             // and fenced code in a syntax-highlighted code window).
             <Markdown content={content} streaming={streaming} />
           )
-        ) : streaming && !error ? (
+        ) : streaming && !error && !thinking ? (
+          // Generic waiting placeholder — only until real reasoning arrives
+          // (the disclosure above then carries the live "Thinking…" cue).
           <span className="inline-flex items-center gap-2 text-fg-muted">
             <Spinner label="Generating response" />
             Thinking…

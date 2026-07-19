@@ -15,6 +15,7 @@
 
 import type { ChatTurn, StreamChunk, ToolCall, ToolSpec } from './types'
 import { describeToolCall } from '@main/tools/describe'
+import { splitThinkTag } from './think-tags'
 
 /** An OpenAI chat-completions message (superset of ChatTurn for the tool turns). */
 interface OaiMessage {
@@ -33,6 +34,10 @@ interface ChatCompletionResponse {
   choices?: Array<{
     message?: {
       content?: string | null
+      // Reasoning models return their chain of thought in a dedicated field:
+      // `reasoning` (OpenRouter, Grok) or `reasoning_content` (DeepSeek, Groq).
+      reasoning?: string | null
+      reasoning_content?: string | null
       tool_calls?: Array<{
         id?: string
         function?: { name?: string; arguments?: string }
@@ -174,8 +179,16 @@ export async function* runToolLoop(opts: ToolLoopOptions): AsyncIterable<StreamC
       continue // ask the model again now that it has the tool results
     }
 
-    // No tool calls → this is the final answer.
-    const content = typeof message?.content === 'string' ? message.content : ''
+    // No tool calls → this is the final answer. Surface any reasoning first
+    // (the dedicated field, or a leading <think>…</think> block inlined in the
+    // content by local/aggregator-served thinking models), then the answer.
+    const reasoningField = message?.reasoning ?? message?.reasoning_content
+    if (typeof reasoningField === 'string' && reasoningField !== '') {
+      yield { type: 'thinking', text: reasoningField }
+    }
+    const raw = typeof message?.content === 'string' ? message.content : ''
+    const { thinking: inlineThinking, answer: content } = splitThinkTag(raw)
+    if (inlineThinking) yield { type: 'thinking', text: inlineThinking }
     if (content) yield { type: 'delta', text: content }
     if (promptTokens > 0 || completionTokens > 0) {
       yield { type: 'usage', promptTokens, completionTokens }

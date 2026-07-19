@@ -48,10 +48,11 @@ interface GeminiContent {
   parts: GeminiContentPart[]
 }
 
-/** The slice of each streamed GenerateContentResponse chunk we care about. */
+/** The slice of each streamed GenerateContentResponse chunk we care about.
+ *  `thought: true` marks a thought-summary part (includeThoughts). */
 interface GeminiStreamChunk {
   candidates?: {
-    content?: { parts?: { text?: string }[] }
+    content?: { parts?: { text?: string; thought?: boolean }[] }
     finishReason?: string
   }[]
   /** Cumulative token counts (the last chunk carries the final totals). */
@@ -150,10 +151,26 @@ function mapMessages(messages: ChatTurn[]): {
   return { systemInstruction: { parts: [{ text: systemParts.join('\n\n') }] }, contents }
 }
 
-/** Extract the incremental text delta from one streamed chunk, if present. */
-function extractDelta(chunk: GeminiStreamChunk): string | undefined {
-  const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text
-  return typeof text === 'string' && text !== '' ? text : undefined
+/** True for models that accept `thinkingConfig` (the 2.5+ / 3.x families —
+ *  everything in Sunny's catalog; older ids are gated out defensively). */
+export function supportsGeminiThinking(model: string): boolean {
+  return /^gemini-[23]/.test(model)
+}
+
+/**
+ * Extract the incremental chunks from one streamed GenerateContentResponse:
+ * thought-summary parts (`thought: true`, from includeThoughts) map to
+ * `thinking`, ordinary text parts to `delta`. A chunk can carry both — iterate
+ * ALL parts, not just the first.
+ */
+export function extractStreamChunks(chunk: GeminiStreamChunk): StreamChunk[] {
+  const parts = chunk.candidates?.[0]?.content?.parts ?? []
+  const out: StreamChunk[] = []
+  for (const part of parts) {
+    if (typeof part.text !== 'string' || part.text === '') continue
+    out.push(part.thought === true ? { type: 'thinking', text: part.text } : { type: 'delta', text: part.text })
+  }
+  return out
 }
 
 /**
@@ -242,6 +259,13 @@ export class GeminiProvider implements Provider {
         body: JSON.stringify({
           contents,
           ...(systemInstruction ? { systemInstruction } : {}),
+          // Thought summaries (AI-Studio-style): thinking models stream their
+          // reasoning as parts flagged `thought: true`, which map to thinking
+          // chunks for the collapsible UI. Gated to families that accept
+          // thinkingConfig so older custom model ids are unaffected.
+          ...(supportsGeminiThinking(model)
+            ? { generationConfig: { thinkingConfig: { includeThoughts: true } } }
+            : {}),
           // Native server-side Google Search grounding (Gemini 2.5/3.x). The
           // empty-object value is required — `true`/the deprecated
           // `google_search_retrieval` are wrong. groundingMetadata rides along
@@ -304,10 +328,9 @@ export class GeminiProvider implements Provider {
         const text = decoder.decode(value, { stream: true })
         for (const sse of parser.push(text)) {
           takeUsage(sse.data)
-          const chunk = this.handleEvent(sse.data)
-          if (chunk) {
+          for (const chunk of this.handleEvent(sse.data)) {
             yield chunk
-            if (chunk.type !== 'delta') return
+            if (chunk.type !== 'delta' && chunk.type !== 'thinking') return
           }
         }
       }
@@ -316,10 +339,9 @@ export class GeminiProvider implements Provider {
       // the last data line without a trailing blank line).
       for (const sse of parser.flush()) {
         takeUsage(sse.data)
-        const chunk = this.handleEvent(sse.data)
-        if (chunk) {
+        for (const chunk of this.handleEvent(sse.data)) {
           yield chunk
-          if (chunk.type !== 'delta') return
+          if (chunk.type !== 'delta' && chunk.type !== 'thinking') return
         }
       }
 
@@ -337,23 +359,23 @@ export class GeminiProvider implements Provider {
   }
 
   /**
-   * Map one decoded SSE data payload to a normalized chunk, or undefined for
-   * chunks that carry no text (e.g. a final chunk with only a finishReason).
+   * Map one decoded SSE data payload to its normalized chunks (a payload can
+   * carry a thought part AND an answer part), or an empty array for chunks with
+   * no text (e.g. a final chunk carrying only a finishReason).
    */
-  private handleEvent(data: string): StreamChunk | undefined {
+  private handleEvent(data: string): StreamChunk[] {
     let chunk: GeminiStreamChunk
     try {
       chunk = JSON.parse(data) as GeminiStreamChunk
     } catch {
       // A non-JSON data line is not actionable; skip rather than fail the stream.
-      return undefined
+      return []
     }
 
     // An in-band error chunk can appear even after a 200 response.
-    if (chunk.error?.message) return { type: 'error', message: chunk.error.message }
+    if (chunk.error?.message) return [{ type: 'error', message: chunk.error.message }]
 
-    const delta = extractDelta(chunk)
-    return delta === undefined ? undefined : { type: 'delta', text: delta }
+    return extractStreamChunks(chunk)
   }
 
   /**
