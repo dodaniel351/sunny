@@ -142,6 +142,10 @@ export const Chat = z.object({
   // Optional agent this chat runs as (its system prompt is injected). spec §7.
   agent_id: z.string().nullable(),
   archived: z.number().int(),
+  // Incognito (1) keeps this chat out of the memory system: no auto-memory
+  // capture from its exchanges, no memory recall injected into its context,
+  // and no content-derived title. The transcript itself stays local as usual.
+  incognito: z.number().int(),
   created_at: isoTimestamp,
   updated_at: isoTimestamp
 })

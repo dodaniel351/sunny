@@ -60,6 +60,8 @@ export const IPC = {
   chatsCreate: 'chats:create',
   chatsRename: 'chats:rename',
   chatsSetProject: 'chats:setProject',
+  // Toggle incognito mode (keeps the chat out of the memory system).
+  chatsSetIncognito: 'chats:setIncognito',
   chatsDelete: 'chats:delete',
   // Streaming chat (spec §4 / Phase 2)
   chatSend: 'chat:send',
@@ -387,7 +389,10 @@ export const ChatCreateParams = z.object({
   // Run this chat as a specific agent (its system prompt is injected). spec §7.
   agentId: z.string().optional(),
   // Scope this chat to a project (spec §7); omitted/unset = unattached.
-  projectId: z.string().optional()
+  projectId: z.string().optional(),
+  // Start in incognito mode: no auto-memory capture, no memory recall, no
+  // content-derived title. The transcript itself is still stored locally.
+  incognito: z.boolean().optional()
 })
 export type ChatCreateParams = z.infer<typeof ChatCreateParams>
 
@@ -416,6 +421,14 @@ export const ChatSetProjectParams = z.object({
   projectId: z.string().nullable()
 })
 export type ChatSetProjectParams = z.infer<typeof ChatSetProjectParams>
+
+// Toggle incognito on an existing chat (applies to subsequent turns; memories
+// already captured from earlier turns are not retroactively removed).
+export const ChatSetIncognitoParams = z.object({
+  chatId: z.string(),
+  incognito: z.boolean()
+})
+export type ChatSetIncognitoParams = z.infer<typeof ChatSetIncognitoParams>
 
 export const ChatDeleteParams = z.object({ chatId: z.string() })
 export type ChatDeleteParams = z.infer<typeof ChatDeleteParams>

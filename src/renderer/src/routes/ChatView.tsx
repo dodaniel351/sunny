@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, FolderOpen, Pencil, RotateCcw, X } from 'lucide-react'
+import { ArrowLeft, Check, FolderOpen, Ghost, Pencil, RotateCcw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChatComposer } from '@renderer/components/chat/ChatComposer'
@@ -300,6 +300,18 @@ export function ChatView(): JSX.Element {
     setEditingTitle(false)
   }
 
+  /** Toggle incognito for this chat (applies to subsequent turns). Optimistic. */
+  async function handleToggleIncognito(): Promise<void> {
+    if (!chatId || !chat) return
+    const next = chat.incognito === 1 ? 0 : 1
+    setChat((cur) => (cur ? { ...cur, incognito: next } : cur))
+    try {
+      await window.sunny.chats.setIncognito({ chatId, incognito: next === 1 })
+    } catch {
+      setChat((cur) => (cur ? { ...cur, incognito: next === 1 ? 0 : 1 } : cur))
+    }
+  }
+
   /** Move this chat to another project (or to Unfiled with null). Optimistic. */
   async function handleMoveProject(projectId: string | null): Promise<void> {
     if (!chatId) return
@@ -384,6 +396,16 @@ export function ChatView(): JSX.Element {
         )}
         {titleError ? (
           <span className="shrink-0 text-xs text-status-blocked">{titleError}</span>
+        ) : null}
+
+        {chat?.incognito === 1 ? (
+          <span
+            title="Incognito — this chat is kept out of memory (no capture, no recall)"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-400/10 px-3 py-1.5 text-xs font-medium text-violet-300"
+          >
+            <Ghost className="h-3.5 w-3.5" aria-hidden="true" />
+            Incognito
+          </span>
         ) : null}
 
         <div className="ml-auto shrink-0">
@@ -500,6 +522,8 @@ export function ChatView(): JSX.Element {
             canSend={canSend}
             folder={folder}
             defaultWebSearch={agentWebDefault}
+            incognito={chat?.incognito === 1}
+            onToggleIncognito={() => void handleToggleIncognito()}
             onSend={(content, webSearch, images) => void sendMessage(content, webSearch, images)}
             onStop={handleStop}
             onPickFolder={() => void handlePickFolder()}

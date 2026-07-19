@@ -1,4 +1,4 @@
-import { ArrowUp, FolderOpen, Globe, Paperclip, Square, X } from 'lucide-react'
+import { ArrowUp, FolderOpen, Ghost, Globe, Paperclip, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ModelSelector } from '@renderer/components/dashboard/ModelSelector'
@@ -23,6 +23,10 @@ interface ChatComposerProps {
    * when the chat runs as an agent that has web access.
    */
   defaultWebSearch?: boolean
+  /** Whether this chat is in incognito mode (kept out of the memory system). */
+  incognito?: boolean
+  /** Toggle incognito for this chat (applies to subsequent turns). */
+  onToggleIncognito?: () => void
   onSend: (content: string, webSearch: boolean, images: ImageAttachment[]) => void
   onStop: () => void
   /** Open the native folder picker and bind the result to this chat. */
@@ -41,6 +45,8 @@ export function ChatComposer({
   canSend,
   folder,
   defaultWebSearch = false,
+  incognito = false,
+  onToggleIncognito,
   onSend,
   onStop,
   onPickFolder,
@@ -192,6 +198,29 @@ export function ChatComposer({
             <Paperclip className="h-4 w-4" aria-hidden="true" />
             Attach
           </button>
+
+          {onToggleIncognito ? (
+            <button
+              type="button"
+              onClick={onToggleIncognito}
+              aria-pressed={incognito}
+              title={
+                incognito
+                  ? 'Incognito is ON — this chat is kept out of memory (no capture, no recall)'
+                  : 'Turn on incognito — keep this chat out of memory'
+              }
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60',
+                incognito
+                  ? 'border-violet-400/60 bg-violet-400/10 text-violet-300'
+                  : 'border-ink-700 bg-ink-850 text-fg-muted hover:border-ink-600 hover:bg-ink-800 hover:text-fg'
+              )}
+            >
+              <Ghost className="h-4 w-4" aria-hidden="true" />
+              Incognito
+            </button>
+          ) : null}
         </div>
 
         {streaming ? (

@@ -14,6 +14,8 @@ export interface ChatCreateInput {
   model?: string
   projectId?: string
   agentId?: string
+  /** Start the chat in incognito mode (kept out of the memory system). */
+  incognito?: boolean
 }
 
 export class ChatsRepo {
@@ -24,13 +26,14 @@ export class ChatsRepo {
   private readonly listUnattachedStmt
   private readonly renameStmt
   private readonly setProjectStmt
+  private readonly setIncognitoStmt
   private readonly touchStmt
   private readonly deleteStmt
 
   constructor(db: SunnyDatabase) {
     this.insertStmt = db.prepare(
-      `INSERT INTO chats (id, project_id, title, provider, model, agent_id, archived, created_at, updated_at)
-       VALUES (@id, @project_id, @title, @provider, @model, @agent_id, 0, @created_at, @updated_at)`
+      `INSERT INTO chats (id, project_id, title, provider, model, agent_id, archived, incognito, created_at, updated_at)
+       VALUES (@id, @project_id, @title, @provider, @model, @agent_id, 0, @incognito, @created_at, @updated_at)`
     )
     this.getStmt = db.prepare(`SELECT * FROM chats WHERE id = ?`)
     // Newest-first by updated_at; LEFT JOIN messages for count + last activity.
@@ -60,6 +63,9 @@ export class ChatsRepo {
     this.setProjectStmt = db.prepare(
       `UPDATE chats SET project_id = @project_id, updated_at = @updated_at WHERE id = @id`
     )
+    this.setIncognitoStmt = db.prepare(
+      `UPDATE chats SET incognito = @incognito, updated_at = @updated_at WHERE id = @id`
+    )
     this.touchStmt = db.prepare(`UPDATE chats SET updated_at = @updated_at WHERE id = @id`)
     this.deleteStmt = db.prepare(`DELETE FROM chats WHERE id = ?`)
   }
@@ -74,11 +80,22 @@ export class ChatsRepo {
       model: input.model ?? null,
       agent_id: input.agentId ?? null,
       archived: 0,
+      incognito: input.incognito ? 1 : 0,
       created_at: now,
       updated_at: now
     }
     this.insertStmt.run(row)
     return row
+  }
+
+  /** Toggle incognito mode (keeps the chat out of the memory system). Applies
+   *  to subsequent turns; already-captured memories are not retroactively removed. */
+  setIncognito(id: string, incognito: boolean): void {
+    this.setIncognitoStmt.run({
+      id,
+      incognito: incognito ? 1 : 0,
+      updated_at: new Date().toISOString()
+    })
   }
 
   get(id: string): Chat | null {

@@ -7,6 +7,7 @@ import { migration005 } from './005_message_attachments'
 import { migration006 } from './006_org_layer'
 import { migration007 } from './007_schedule_failures'
 import { migration008 } from './008_message_thinking'
+import { migration009 } from './009_chat_incognito'
 
 // The ordered list of all migrations. Append new ones here with the next
 // version number; runMigrations sorts and applies only the pending ones.
@@ -18,7 +19,8 @@ export const migrations: Migration[] = [
   migration005,
   migration006,
   migration007,
-  migration008
+  migration008,
+  migration009
 ]
 
 export { DEFAULT_EMBEDDING_DIM } from './001_init'

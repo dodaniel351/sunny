@@ -29,6 +29,7 @@ import {
   type ChatCreateResult,
   type ChatRenameParams,
   type ChatSetProjectParams,
+  type ChatSetIncognitoParams,
   type ChatDeleteParams,
   type ChatSendParams,
   type ChatSendResult,
@@ -212,6 +213,10 @@ const api = {
       ipcRenderer.invoke(IPC.chatsRename, params),
     setProject: (params: ChatSetProjectParams): Promise<OkResult> =>
       ipcRenderer.invoke(IPC.chatsSetProject, params),
+    /** Toggle incognito mode — keeps the chat out of the memory system (no
+     *  capture, no recall) for subsequent turns. */
+    setIncognito: (params: ChatSetIncognitoParams): Promise<OkResult> =>
+      ipcRenderer.invoke(IPC.chatsSetIncognito, params),
     delete: (params: ChatDeleteParams): Promise<OkResult> =>
       ipcRenderer.invoke(IPC.chatsDelete, params)
   },

@@ -23,6 +23,7 @@ import {
   ChatCreateResult,
   ChatRenameParams,
   ChatSetProjectParams,
+  ChatSetIncognitoParams,
   ChatDeleteParams,
   ClipboardWriteParams,
   FileOpenParams,
@@ -756,6 +757,12 @@ export function registerIpcHandlers({
     return OkResult.parse({ ok: true })
   })
 
+  ipcMain.handle(IPC.chatsSetIncognito, (_event, raw) => {
+    const { chatId, incognito } = ChatSetIncognitoParams.parse(raw)
+    repos.chats.setIncognito(chatId, incognito)
+    return OkResult.parse({ ok: true })
+  })
+
   ipcMain.handle(IPC.chatsDelete, (_event, raw) => {
     const { chatId } = ChatDeleteParams.parse(raw)
     repos.chats.delete(chatId)
@@ -783,9 +790,12 @@ export function registerIpcHandlers({
       webSearch?: boolean
       permissionMode?: PermissionMode
       projectId?: string
+      /** Incognito chat: skip memory recall injection AND auto-memory capture. */
+      incognito?: boolean
     }
   ): Promise<void> {
     const { kind, chatId, model, streamId, turns, folderPath, agentId, webSearch, projectId } = args
+    const incognito = args.incognito === true
     // The user's live composer choice governs an interactive turn's tool actions,
     // overriding the agent's stored default; falls back to it when unset.
     const permissionMode = args.permissionMode
@@ -890,7 +900,9 @@ export function registerIpcHandlers({
           // Folder unreadable (moved/permissions) — proceed without it.
         }
       }
-      if (memory.autoEnabled()) {
+      // Incognito chats never touch the memory system — no recall in, and (below,
+      // after the reply) no capture out.
+      if (!incognito && memory.autoEnabled()) {
         const lastUser = [...turns].reverse().find((t) => t.role === 'user')?.content ?? ''
         if (lastUser) {
           try {
@@ -1097,7 +1109,8 @@ export function registerIpcHandlers({
 
       // Capture durable memory from this completed exchange (async, fire-and-
       // forget — extraction runs an extra cheap model call but never blocks).
-      if (memory.autoEnabled() && acc.trim().length > 0) {
+      // Incognito chats are never captured.
+      if (!incognito && memory.autoEnabled() && acc.trim().length > 0) {
         const userText = [...turns].reverse().find((t) => t.role === 'user')?.content ?? ''
         void memory.capture({
           chatId,
@@ -1149,7 +1162,8 @@ export function registerIpcHandlers({
     repos.chats.touch(chatId)
     let derivedTitle: string | undefined
     if (isFirstMessage && (!chat.title || chat.title.trim() === '')) {
-      derivedTitle = deriveTitle(content)
+      // Incognito chats never leak message content into the sidebar title.
+      derivedTitle = chat.incognito === 1 ? 'Incognito chat' : deriveTitle(content)
       repos.chats.rename(chatId, derivedTitle)
     }
 
@@ -1167,7 +1181,8 @@ export function registerIpcHandlers({
       agentId: chat.agent_id ?? undefined,
       webSearch,
       permissionMode,
-      projectId: chat.project_id ?? undefined
+      projectId: chat.project_id ?? undefined,
+      incognito: chat.incognito === 1
     })
 
     return ChatSendResult.parse({ streamId, userMessage, title: derivedTitle })
@@ -1199,7 +1214,8 @@ export function registerIpcHandlers({
       agentId: chat.agent_id ?? undefined,
       webSearch,
       permissionMode,
-      projectId: chat.project_id ?? undefined
+      projectId: chat.project_id ?? undefined,
+      incognito: chat.incognito === 1
     })
     return ChatRetryResult.parse({ streamId })
   })

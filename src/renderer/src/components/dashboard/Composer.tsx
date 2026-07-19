@@ -1,4 +1,4 @@
-import { ArrowUp, FolderOpen, Globe, Paperclip, X } from 'lucide-react'
+import { ArrowUp, FolderOpen, Ghost, Globe, Paperclip, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AttachmentChips } from '@renderer/components/ui/AttachmentChips'
@@ -32,6 +32,9 @@ export function Composer(): JSX.Element {
 
   const [value, setValue] = useState('')
   const [webSearch, setWebSearch] = useState(false)
+  // Start the chat in incognito mode: kept out of the memory system (no
+  // capture, no recall) and titled without message content.
+  const [incognito, setIncognito] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [attachments, setAttachments] = useState<FileAttachment[]>([])
   const [skipped, setSkipped] = useState<FilePickResult['skipped']>([])
@@ -98,7 +101,8 @@ export function Composer(): JSX.Element {
         provider: selectedProvider,
         model: selectedModel,
         // Attach the chat to the active project scope (null = unattached).
-        projectId: activeProjectId ?? undefined
+        projectId: activeProjectId ?? undefined,
+        ...(incognito ? { incognito: true } : {})
       })
       setPendingFirstMessage(
         chat.id,
@@ -108,6 +112,7 @@ export function Composer(): JSX.Element {
       )
       setValue('')
       setWebSearch(false)
+      setIncognito(false)
       setAttachments([])
       setSkipped([])
       navigate(`/chats/${chat.id}`)
@@ -195,6 +200,27 @@ export function Composer(): JSX.Element {
             <Paperclip className="h-4 w-4" aria-hidden="true" />
             Attach
           </Chip>
+
+          <button
+            type="button"
+            onClick={() => setIncognito((on) => !on)}
+            aria-pressed={incognito}
+            title={
+              incognito
+                ? 'Incognito is ON — this chat will be kept out of memory (no capture, no recall)'
+                : 'Start an incognito chat — kept out of memory'
+            }
+            className={cn(
+              'inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60',
+              incognito
+                ? 'border-violet-400/60 bg-violet-400/10 text-violet-300'
+                : 'border-ink-700 bg-ink-850 text-fg-muted hover:border-ink-600 hover:bg-ink-800 hover:text-fg'
+            )}
+          >
+            <Ghost className="h-4 w-4" aria-hidden="true" />
+            Incognito
+          </button>
         </div>
 
         <button
